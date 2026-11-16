@@ -1,0 +1,6 @@
+ruff==0.17.5
+mypy==2.4.1
+types-PyYAML==6.0.12.20261113
+bandit==1.9.4
+pip-audit==2.10.1
+yamllint==1.38.0
