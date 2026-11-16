@@ -11,8 +11,6 @@ htmlcov/
 
 # 运行产物
 data/audit.jsonl
+# 评估报告含逐条耗时，每次运行字节级不同，作为本地产物；关键结果已写入 README §9
 data/reports/*
 !data/reports/.gitkeep
-# mock 模式的实测报告随版本发布（README §9 引用）
-!data/reports/mock.md
-!data/reports/mock.csv
