@@ -1,0 +1,28 @@
+steps:
+  - name: schema
+    enabled: true
+    strict: false          # false 时剔除多余字段而非直接判失败
+
+  - name: rules
+    enabled: true
+    weights:
+      completeness: 0.4
+      format: 0.3
+      grounding: 0.3
+
+  - name: repair
+    enabled: true
+    prompt: prompts/repair.txt
+
+  - name: format
+    enabled: true
+    strip_markdown_fences: true
+    trim_whitespace: true
+    reference_style: gb-t-7714   # 可选 apa
+
+  - name: humanize
+    enabled: false         # 开启后调用模型进行学术语体重写
+    prompt: prompts/humanize.txt
+
+fail_open: true
+audit: true
