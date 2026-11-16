@@ -1,0 +1,13 @@
+﻿id,schema,before_strict_valid,after_valid,expect_valid,expect_matched,score_before,score_after,fields_ok,field_problems,facts_ok,missing_numbers,reference_hits,reference_total,repaired,repair_adopted,degraded,markers,ms
+g001,paper,False,True,True,True,0.927,0.96,True,,True,,1,1,False,False,False,,1
+g002,paper,True,True,True,True,0.9,0.9,True,,True,,0,0,False,False,False,,0
+g003,paper,False,True,True,True,0.94,0.94,True,,True,,0,0,False,False,False,,0
+g004,paper,True,True,True,True,0.64,0.64,True,,True,,0,0,True,True,False,,1
+g005,reference,False,True,True,True,0.976,0.976,True,,True,,0,0,False,False,False,,0
+g006,reference,True,True,True,True,1.0,1.0,True,,True,,0,0,False,False,False,,0
+g007,experiment,True,True,True,True,1.0,1.0,True,,True,,0,0,False,False,False,,0
+g008,experiment,False,True,True,True,0.96,0.96,True,,True,,0,0,False,False,False,,0
+g009,paper,True,True,True,True,0.98,0.98,True,,True,,0,0,False,False,False,,0
+g010,paper,False,False,False,True,0.6,0.6,,,True,,0,0,True,False,False,repair_rejected,0
+g011,paper,False,True,True,True,0.93,0.96,True,,True,,2,2,False,False,False,,0
+g012,experiment,False,False,False,True,0.6,0.6,,,True,,0,0,True,False,False,repair_rejected,0
