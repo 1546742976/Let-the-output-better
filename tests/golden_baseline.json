@@ -1,0 +1,188 @@
+{
+  "g001": {
+    "valid": true,
+    "score": 0.927,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "基于深度学习的图像分类方法研究",
+      "authors": [
+        "张三",
+        "李四"
+      ],
+      "year": 2023,
+      "keywords": [
+        "深度学习",
+        "图像分类",
+        "卷积神经网络"
+      ],
+      "references": [
+        "Zhang S, Li S. Research on image classification based on deep learning[C]//CVPR. 2023."
+      ]
+    }
+  },
+  "g002": {
+    "valid": true,
+    "score": 0.9,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "基于深度学习的图像分类方法研究",
+      "year": 2023
+    }
+  },
+  "g003": {
+    "valid": true,
+    "score": 0.94,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "Transformer 在视觉任务中的应用",
+      "authors": [
+        "王五",
+        "赵六"
+      ],
+      "year": 2024,
+      "keywords": [
+        "Transformer",
+        "视觉",
+        "注意力机制"
+      ]
+    }
+  },
+  "g004": {
+    "valid": true,
+    "score": 0.64,
+    "repaired": true,
+    "markers": [],
+    "final_output": {
+      "title": "某综述",
+      "authors": [
+        "陈七"
+      ],
+      "year": 1999,
+      "venue": "软件学报"
+    }
+  },
+  "g005": {
+    "valid": true,
+    "score": 0.976,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "Deep residual learning for image recognition",
+      "authors": [
+        "He K",
+        "Zhang X",
+        "Ren S"
+      ],
+      "venue": "CVPR",
+      "year": 2016,
+      "type": "conference"
+    }
+  },
+  "g006": {
+    "valid": true,
+    "score": 1.0,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "基于深度学习的图像分类方法研究",
+      "authors": [
+        "张三",
+        "李四"
+      ],
+      "venue": "计算机学报",
+      "year": 2023,
+      "doi": "10.11897/SP.J.1016.2023.00100",
+      "type": "journal"
+    }
+  },
+  "g007": {
+    "valid": true,
+    "score": 1.0,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "method": "ResNet-50",
+      "metric": "Top-1 Acc",
+      "value": 76.5,
+      "dataset": "ImageNet",
+      "unit": "%",
+      "baseline": 75.2
+    }
+  },
+  "g008": {
+    "valid": true,
+    "score": 0.96,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "method": "BERT-base",
+      "metric": "F1",
+      "value": 88.5,
+      "dataset": "SQuAD v1.1",
+      "baseline": 80.8
+    }
+  },
+  "g009": {
+    "valid": true,
+    "score": 0.98,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "图神经网络的综述",
+      "authors": [
+        "周八"
+      ],
+      "year": 2022,
+      "venue": "ACM Computing Surveys",
+      "keywords": [
+        "图神经网络",
+        "推荐系统"
+      ],
+      "abstract": "值得注意的是，图神经网络在推荐系统中的应用日益广泛，具有广阔的应用前景。"
+    }
+  },
+  "g010": {
+    "valid": false,
+    "score": 0.6,
+    "repaired": true,
+    "markers": [
+      "repair_rejected"
+    ],
+    "final_output": "抱歉，我无法从您提供的内容中找到论文的标题、作者与年份信息，请提供更多材料后重试。"
+  },
+  "g011": {
+    "valid": true,
+    "score": 0.93,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "多模态学习导论",
+      "authors": [
+        "吴十",
+        "郑一"
+      ],
+      "year": 2023,
+      "keywords": [
+        "multimodal",
+        "learning",
+        "survey"
+      ],
+      "references": [
+        "Wu S, Zheng Y. Introduction to multimodal learning[J]. IEEE TPAMI, 2023.",
+        "Li M. Multimodal survey[J]. IEEE TPAMI, 2022."
+      ]
+    }
+  },
+  "g012": {
+    "valid": false,
+    "score": 0.6,
+    "repaired": true,
+    "markers": [
+      "repair_rejected"
+    ],
+    "final_output": "{\"dataset\": \"A\", \"value\": \"91.2\"}"
+  }
+}
