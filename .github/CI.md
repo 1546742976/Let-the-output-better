@@ -10,7 +10,7 @@
 | 代码规范与格式 | Ruff lint 与 format --check |
 | 类型 | mypy，检查 app，包括未完整标注函数体 |
 | 测试与覆盖率 | pytest，行与分支综合覆盖率至少 80% |
-| 兼容性 | Linux Python 3.10–3.14，Windows Python 3.13 |
+| 兼容性 | Linux Python 3.11–3.14，Windows Python 3.13 |
 | 离线验证 | mock demo、金标评估及 CSV 结果断言 |
 | Python 安全 | Bandit |
 | 代码扫描 | CodeQL Actions；上传应用代码后追加 Python |

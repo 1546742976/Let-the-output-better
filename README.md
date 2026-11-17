@@ -149,7 +149,7 @@ class BaseStep:
 
 ### 6.1 环境要求
 
-- Python 3.10 及以上
+- Python 3.11 及以上
 - pip 23 及以上
 - 可选：任一支持 OpenAI 兼容协议的模型服务（不配置时使用 mock provider）
 
