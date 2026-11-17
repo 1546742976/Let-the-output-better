@@ -321,15 +321,17 @@ class CcfVenueStep(BaseStep):
 
 ### 7.4 可视化页面
 
-起服后访问 `/`，三栏布局：左为历史会话，中为输入与结果流，右为运行环境与优化前后对照。
+起服后访问 `/`。页面为对话流布局：左侧细栏是历史会话，中间一条居中主列自上而下是"输入回显 → 结论 → 前后对照 → 可折叠详情"，主列底部是 composer。视觉取向对齐 Codex 的版式语言（单强调色、发丝分隔线、状态用淡色 pill），但不使用其任何图形资产与外链资源。
 
 | 区域 | 内容 | 数据来源 |
 | ------ | ------ | ------ |
-| 历史会话 | schema、状态、得分、耗时、变更标记；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
-| 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关与 `timeout_ms` | `GET /v1/config` |
-| 结果流 | 结论行、步骤时间线（逐步耗时与原因）、三维评分条、变更与标记、错误 | `POST /v1/optimize` 与该次的审计记录 |
-| 运行环境 | provider、阈值、超时、fail_open、引用风格、审计条数、健康灯 | `GET /v1/config`、`GET /healthz` |
-| 前后对照 | 行级 diff，增删分色 | 审计记录的 `raw_output` 与 `final_output` |
+| 历史会话 | 状态点、schema、得分、单行原文预览、耗时与采纳标记；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
+| 结论行 | 只放状态词与得分（`通过 0.927`），其余指标降到详情区 | `POST /v1/optimize` 与该次审计记录 |
+| 前后对照 | 行级 diff，行号与 `+/−` 分色 | 审计记录的 `raw_output` 与 `final_output` |
+| 详情（默认折叠） | 步骤时间线、三维评分条、运行指标 chips、变更与标记、运行环境、errors | 同上 |
+| composer | 模式分段（粘贴输出 / 驱动 harness）、`raw_output` 或 `task`、`instruction`；参数面板内含 `input_text`、五个步骤开关与 `timeout_ms`、harness profile 下拉与检测结果 | `GET /v1/config`、`GET /v1/harnesses` |
+
+主题跟随系统 `prefers-color-scheme`，顶栏按钮可手动切换并写入 `localStorage`；主题在 `<head>` 的内联脚本里于首帧前落到 `data-theme`，避免浅深切换闪屏。
 
 局限与注意点：
 
@@ -339,7 +341,7 @@ class CcfVenueStep(BaseStep):
 - 步骤开关默认取 `pipeline.yaml` 的取值，提交时显式发送布尔值，不再沿用“未设置即跟随配置”的三态语义。
 - 模型输出与审计内容一律按纯文本渲染，测试用例断言页面不存在 `innerHTML` 等注入写法。
 - diff 在前端计算，超过 400 行自动降级为只显示优化后结果。
-- 布局在桌面宽度下为三栏，窄于 1040px 自动折叠为单列；左上按钮可收起历史栏。
+- 布局为"细左栏 + 居中主列"，窄于 1040px 折叠为单列；左上按钮可收起历史栏。样式全部走令牌（间距 4 基、字号 5 档、圆角 4 档、两套语义色），`padding/margin/gap/font-size` 不写字面量——实测 301 个渲染节点的这三类取值全部落在令牌集内。
 
 ### 7.5 驱动 harness（实验面）
 
