@@ -18,4 +18,4 @@
 {"id": "q18", "sentence": "提升可能是 12.5%。", "source": "本文报告 Top-1 准确率提升 12.5%。", "expect": "ungrounded", "why": "带数字的弱化主张句，不是范围声明；删掉犹豫词不丢信息"}
 {"id": "q19", "sentence": "在 24 名被试上得到的结论可能不稳。", "source": "研究纳入 24 名被试。", "expect": "boundary", "why": "无边界线索但含领域名词（被试）：名词自己就划定了范围"}
 {"id": "q20", "sentence": "The model reaches 91.2% top-1 accuracy on ImageNet.", "source": "Top-1 accuracy is 91.2% on ImageNet.", "expect": null, "why": "无标记的主张句，中英同样不判为限定语"}
-{"id": "q21", "sentence": "这并不意味着 ResNet-50 上的结果可以推广。", "source": "骨干网络统一使用 ResNet-50。", "expect": "boundary", "why": "争议行，待你定夺：标识符确实划定了范围，按“宁可少删”保留，代价是这类撤回模板留在文本里"}
+{"id": "q21", "sentence": "这并不意味着 ResNet-50 上的结果可以推广。", "source": "骨干网络统一使用 ResNet-50。", "expect": "boundary", "why": "自我否定与真范围叠加时的取舍，已由用户确认按保守原则保留：标识符确实划定了范围，代价是这类撤回模板留在文本里"}
