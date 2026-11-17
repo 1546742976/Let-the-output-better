@@ -16,8 +16,8 @@ def register_step(cls: type[BaseStep]) -> type[BaseStep]:
 # 导入即注册；顺序无关，仅需保证包初始化后内置步骤全部可用。
 from app.optimizer.steps import (  # noqa: E402,F401
     format,
-    humanize,
     repair,
     rules,
     schema,
+    simplify,
 )

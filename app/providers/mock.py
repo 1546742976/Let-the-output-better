@@ -1,7 +1,8 @@
 """离线 mock provider：无网络、无密钥即可跑通管线、测试与评估。
 
-它不是“假装成功”，而是用确定性规则扮演一个模型：修复=只回 JSON，
-拟人化=按套话对照表压缩表述。因此金标评估结果可复现。
+它不是"假装成功"，而是用确定性规则扮演一个模型：修复=只回 JSON，
+通俗化=按对照表压缩措辞。词表只有一份，住在零依赖的 `app/plain.py`，
+因此金标评估结果可复现且与评分口径同源。
 """
 
 from __future__ import annotations
@@ -9,34 +10,12 @@ from __future__ import annotations
 import asyncio
 import json
 
+from app.plain import rewrite_table
 from app.providers.base import BaseProvider, ChatResponse
 from app.textio import extract_json
 
 REPAIR_MARK = "待修复输出："
-HUMANIZE_MARK = "待改写文本："
-
-# 空泛套话 → 简洁表述；只动措辞，不触碰数值与引用。
-BOILERPLATE = (
-    ("值得注意的是，", ""),
-    ("值得注意，", ""),
-    ("需要指出的是，", ""),
-    ("不难发现，", ""),
-    ("众所周知，", ""),
-    ("综上所述，", ""),
-    ("总而言之，", ""),
-    ("实验结果充分表明", "实验表明"),
-    ("结果充分表明", "结果表明"),
-    ("实验充分证明", "实验表明"),
-    ("充分表明", "表明"),
-    ("具有显著的性能优势和广阔的应用前景", "性能优于对比方法"),
-    ("具有显著的性能优势", "性能优于对比方法"),
-    ("广阔的应用前景", "适用范围较广"),
-    ("具有重要的理论意义和应用价值", ""),
-    ("具有重要意义", ""),
-    ("在一定程度上", ""),
-    ("本文所提出的方法", "本文方法"),
-    ("我们创新性地提出", "我们提出"),
-)
+SIMPLIFY_MARK = "待改写文本："
 
 
 def repair_payload(prompt: str) -> str:
@@ -48,11 +27,11 @@ def repair_payload(prompt: str) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-def condense_text(prompt: str) -> str:
-    """扮演重写模型：剔除空泛套话，保留全部事实。"""
-    segment = prompt.rsplit(HUMANIZE_MARK, 1)[-1] if HUMANIZE_MARK in prompt else prompt
+def simplify_text(prompt: str) -> str:
+    """扮演通俗化模型：删套话、换直白说法，不动数值与引用。"""
+    segment = prompt.rsplit(SIMPLIFY_MARK, 1)[-1] if SIMPLIFY_MARK in prompt else prompt
     text = segment.strip()
-    for boilerplate, replacement in BOILERPLATE:
+    for boilerplate, replacement in rewrite_table():
         text = text.replace(boilerplate, replacement)
     text = text.replace("，。", "。").replace("。。", "。")
     while "，，" in text:
@@ -87,8 +66,8 @@ class MockProvider(BaseProvider):
             text = self.reply
         elif task == "repair":
             text = repair_payload(user)
-        elif task == "humanize":
-            text = condense_text(user)
+        elif task == "simplify":
+            text = simplify_text(user)
         else:
             text = user.strip()
         return ChatResponse(text=text, prompt_tokens=0, completion_tokens=0)

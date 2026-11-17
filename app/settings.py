@@ -20,7 +20,10 @@ from app.harness.command import resolve_allowed_command
 
 DEFAULT_PIPELINE_PATH = Path("config") / "pipeline.yaml"
 SUPPORTED_PROVIDERS = ("mock", "openai")
-DEFAULT_WEIGHTS = {"completeness": 0.4, "format": 0.3, "grounding": 0.3}
+#: 散文输出的评分口径：通俗化是主目标，结构完整性不适用。
+PROSE_WEIGHTS = {"plainness": 0.5, "concision": 0.3, "preservation": 0.2}
+#: 结构化输出的评分口径：保留原有三维，另加一维通俗度。
+STRUCTURED_WEIGHTS = {"completeness": 0.3, "format": 0.25, "grounding": 0.25, "plainness": 0.2}
 # 开发者本地可能存在 .env；测试通过 OPTIMIZE_ENV_FILE=dev/null 让配置只来自默认值与环境变量。
 ENV_FILE = os.environ.get("OPTIMIZE_ENV_FILE", ".env")
 
@@ -122,10 +125,12 @@ class StepConfig(BaseModel):
     enabled: bool = True
     strict: bool = False
     prompt: str | None = None
-    weights: dict[str, float] | None = None
+    weights: dict[str, dict[str, float]] | None = None
     strip_markdown_fences: bool = True
     trim_whitespace: bool = True
     reference_style: Literal["gb-t-7714", "apa"] = "gb-t-7714"
+    #: 通俗化只在散文场景生效；结构化字段要改写需在 pipeline.yaml 显式打开。
+    prose_only: bool = True
     module: str | None = None
 
     model_config = ConfigDict(extra="allow")
@@ -134,10 +139,10 @@ class StepConfig(BaseModel):
 def default_steps() -> list[StepConfig]:
     return [
         StepConfig(name="schema"),
-        StepConfig(name="rules", weights=dict(DEFAULT_WEIGHTS)),
+        StepConfig(name="rules"),
         StepConfig(name="repair", prompt="prompts/repair.txt"),
         StepConfig(name="format", reference_style="gb-t-7714"),
-        StepConfig(name="humanize", enabled=False, prompt="prompts/humanize.txt"),
+        StepConfig(name="simplify", prompt="prompts/simplify.txt", prose_only=True),
     ]
 
 

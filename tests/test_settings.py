@@ -66,8 +66,8 @@ class TestSettings:
 
     def test_missing_yaml_falls_back_to_defaults(self, tmp_path: Path):
         config = load_pipeline_config(tmp_path / "absent.yaml")
-        assert [step.name for step in config.steps] == ["schema", "rules", "repair", "format", "humanize"]
-        assert config.is_enabled("humanize") is False
+        assert [step.name for step in config.steps] == ["schema", "rules", "repair", "format", "simplify"]
+        assert config.is_enabled("simplify") is True
         assert config.is_enabled("schema") is True
 
 

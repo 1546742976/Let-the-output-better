@@ -613,6 +613,11 @@ body {
   border-color: var(--warn);
 }
 
+.tag.hit {
+  color: var(--muted);
+  background: var(--raised);
+}
+
 .errors {
   margin-top: var(--s3);
   font: var(--fs1)/1.6 var(--mono);

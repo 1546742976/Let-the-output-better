@@ -1,4 +1,4 @@
-"""Provider 统一接口：优化器只在修复与拟人化时调用模型。"""
+"""Provider 统一接口：优化器只在修复与通俗化时调用模型。"""
 
 from __future__ import annotations
 

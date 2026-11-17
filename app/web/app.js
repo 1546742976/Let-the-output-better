@@ -19,7 +19,7 @@ const OPTION_FIELDS = [
   { key: "rules", label: "评分 rules", step: "rules" },
   { key: "repair", label: "修复 repair", step: "repair" },
   { key: "format", label: "格式化 format", step: "format" },
-  { key: "humanize", label: "拟人化 humanize", step: "humanize" },
+  { key: "simplify", label: "通俗化 simplify", step: "simplify" },
   { key: "strict", label: "严格 strict", step: "schema", from: "strict" },
 ];
 
@@ -27,6 +27,9 @@ const DIMENSION_LABELS = {
   completeness: "字段完整度",
   format: "格式合规",
   grounding: "与输入一致性",
+  preservation: "与原文一致性",
+  plainness: "通俗度",
+  concision: "简洁度",
 };
 
 const state = { config: null, items: [], selectedLine: null, harnessNotes: {} };
@@ -173,15 +176,15 @@ function statusOf(record) {
 
 /**
  * 修复/重写各自的采纳结果。它们与 valid 是两件事：一次运行可能同时
- * “修复被闸门拒绝”与“拟人化被采纳”，标签只表达通过与否，细节进 flags。
+ * “修复被闸门拒绝”与“通俗化被采纳”，标签只表达通过与否，细节进 flags。
  */
 function flagsOf(record) {
   const markers = record.markers || [];
   const flags = [];
   if (markers.includes("repair_rejected")) flags.push("修复被拒");
   else if (record.repaired) flags.push("已修复");
-  if (markers.includes("humanize_rejected")) flags.push("重写被拒");
-  else if ((record.changes || []).some((text) => text.includes("拟人化"))) flags.push("已重写");
+  if (markers.includes("simplify_rejected")) flags.push("改写被拒");
+  else if ((record.changes || []).some((text) => text.includes("通俗化"))) flags.push("已通俗化");
   if (markers.includes("timeout")) flags.push("超时");
   return flags;
 }
@@ -358,7 +361,17 @@ function renderSteps(steps) {
     row.appendChild(bar);
     row.appendChild(el("span", "step-ms", `${step.ms ?? 0}ms${scoreText}`));
     if (step.reason) {
-      row.appendChild(el("div", "step-reason", step.reason));
+      const reason = el("div", "step-reason");
+      // 命中条目单独成标签：分数只能说明不好读，标签才能指出哪几句在打太极。
+      const mark = step.reason.indexOf("｜命中：");
+      reason.textContent = mark >= 0 ? step.reason.slice(0, mark) : step.reason;
+      if (mark >= 0) {
+        step.reason
+          .slice(mark + "｜命中：".length)
+          .split("、")
+          .forEach((label) => reason.appendChild(el("span", "tag hit", label)));
+      }
+      row.appendChild(reason);
     }
     box.appendChild(row);
   });

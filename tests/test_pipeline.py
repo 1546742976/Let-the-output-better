@@ -98,16 +98,40 @@ class TestStepToggles:
         assert names(result) == ["schema", "format"]
         assert result.score is None
 
-    async def test_humanize_default_off_and_explicitly_on(self, settings):
-        off = await optimize("值得注意的是，本文方法具有广阔的应用前景。", settings=settings)
-        assert "humanize" not in names(off)
-        on = await optimize("值得注意的是，本文方法具有广阔的应用前景。", settings=settings, humanize=True)
-        assert "humanize" in names(on)
+    async def test_simplify_is_on_by_default_for_prose(self, settings):
+        result = await optimize("值得注意的是，本文方法具有广阔的应用前景。", settings=settings)
+        assert "simplify" in names(result)
+        off = await optimize("值得注意的是，本文方法具有广阔的应用前景。", settings=settings, simplify=False)
+        assert "simplify" not in names(off)
+
+    async def test_prose_never_triggers_repair(self, settings):
+        """修复产出的是 JSON，对散文毫无意义：不该白烧一次调用。"""
+        result = await optimize(
+            "值得注意的是，本文方法具有广阔的应用前景，实验结果充分表明其性能优势显著。",
+            schema=None,
+            settings=settings,
+        )
+        assert "repair" not in names(result)
+        assert result.repaired is False
+        assert "simplify" in names(result)
+
+    async def test_score_describes_the_delivered_text(self, settings):
+        """rules 跑在 simplify 之前；改写后必须重算，否则 score 描述的是输入。"""
+        defensive = "值得注意的是，实验结果充分表明，本文方法在 3 个数据集上取得了 12.5% 的提升，具有显著的性能优势和广阔的应用前景。"
+        result = await optimize(
+            defensive, schema=None, input_text="本文方法在 3 个数据集上提升 12.5%。", settings=settings
+        )
+        rules_step = next(step for step in result.steps if step["name"] == "rules")
+        simplify_step = next(step for step in result.steps if step["name"] == "simplify")
+        assert rules_step["score"] < result.score
+        assert simplify_step["score_after"] == result.score
+        assert result.dimensions["plainness"] == 1.0
 
     async def test_repair_false_keeps_invalid_output_untouched(self, settings):
         raw = "抱歉，我找不到这篇论文。"
         result = await optimize(raw, schema="paper", settings=settings, repair=False)
-        assert result.repaired is False and names(result) == ["schema", "rules", "format"]
+        # 通俗化按新默认也会出现在步骤里，但它没有可改写的叙述文本，原文必须不动。
+        assert result.repaired is False and names(result) == ["schema", "rules", "format", "simplify"]
         assert result.final_output == raw
 
     async def test_strict_true_rejects_extra_fields(self, settings):
@@ -129,7 +153,7 @@ class TestCustomSteps:
         assert "unknown_step(does_not_exist)" in result.errors
 
     def test_builtin_steps_are_all_registered(self):
-        assert set(REGISTRY) >= {"schema", "rules", "repair", "format", "humanize"}
+        assert set(REGISTRY) >= {"schema", "rules", "repair", "format", "simplify"}
 
 
 class TestReliability:
@@ -188,6 +212,17 @@ class TestAudit:
         assert [step["name"] for step in record["steps"]] == ["schema", "rules", "format"]
         assert {"score", "dimensions", "ms", "usage", "provider", "changes"} <= set(record)
 
+    async def test_audit_extra_cannot_silently_replace_core_keys(self, settings, tmp_path: Path):
+        """调用方补的来源信息若与核心键同名，必须显式留痕而不是静默丢弃。"""
+        log = AuditLog(tmp_path / "audit.jsonl")
+        await optimize(
+            README_RAW, schema="paper", settings=settings, audit=log, audit_extra={"provider": "evil", "task": "t"}
+        )
+        record = json.loads((tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+        assert record["provider"] != "evil"
+        assert record["task"] == "t"
+        assert any("audit_extra_key_conflict(provider)" in item for item in record["errors"])
+
     async def test_audit_can_be_disabled(self, settings, tmp_path: Path):
         log_path = tmp_path / "audit.jsonl"
         config = PipelineConfig(audit=False)
@@ -209,9 +244,9 @@ class TestTextAndInvalidPaths:
         assert result.final_output == text
         assert isinstance(result.final_output, str)
 
-    async def test_score_is_reported_with_three_dimensions(self, settings):
+    async def test_score_reports_structured_dimensions(self, settings):
         result = await optimize(README_RAW, schema="paper", input_text=README_INPUT, settings=settings)
-        assert set(result.dimensions) == {"completeness", "format", "grounding"}
+        assert set(result.dimensions) == {"completeness", "format", "grounding", "plainness"}
 
     async def test_context_deadline_is_set_from_timeout(self, settings):
         ctx = StepContext(raw_output="x", settings=settings, config=PipelineConfig(), timeout_s=1.0)

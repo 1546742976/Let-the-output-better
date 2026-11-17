@@ -5,10 +5,16 @@ steps:
 
   - name: rules
     enabled: true
-    weights:
-      completeness: 0.4
-      format: 0.3
-      grounding: 0.3
+    weights:                # 散文与结构化各用一组权重，缺省见 app/settings.py
+      prose:
+        plainness: 0.5
+        concision: 0.3
+        preservation: 0.2
+      structured:
+        completeness: 0.3
+        format: 0.25
+        grounding: 0.25
+        plainness: 0.2
 
   - name: repair
     enabled: true
@@ -20,9 +26,10 @@ steps:
     trim_whitespace: true
     reference_style: gb-t-7714   # 可选 apa
 
-  - name: humanize
-    enabled: false         # 开启后调用模型进行学术语体重写
-    prompt: prompts/humanize.txt
+  - name: simplify
+    enabled: true          # 散文输出默认通俗化；结构化字段仍默认关，见 pipeline 内 prose_only
+    prose_only: true
+    prompt: prompts/simplify.txt
 
 fail_open: true
 audit: true

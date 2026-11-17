@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from app.providers import build_provider
 from app.providers.base import ProviderError, ProviderTimeout
-from app.providers.mock import MockProvider, condense_text, repair_payload
+from app.providers.mock import MockProvider, repair_payload, simplify_text
 from app.providers.openai_compatible import OpenAICompatibleProvider
 from app.settings import Settings
 
@@ -144,19 +144,19 @@ class TestMockProvider:
     async def test_repair_without_json_yields_empty_object(self):
         assert repair_payload("待修复输出：\n一段没有结构的文字") == "{}"
 
-    async def test_humanize_task_condenses_boilerplate(self):
+    async def test_simplify_task_condenses_boilerplate(self):
         prompt = "待改写文本：\n值得注意的是，实验结果充分表明，本文方法具有显著的性能优势和广阔的应用前景。"
-        assert condense_text(prompt) == "实验表明，本文方法性能优于对比方法。"
+        assert simplify_text(prompt) == "实验表明，本文方法性能优于对比方法。"
 
-    async def test_humanize_keeps_numbers(self):
+    async def test_simplify_keeps_numbers(self):
         prompt = "待改写文本：\n该方法在 3 个数据集上提升 12.5%。"
-        assert condense_text(prompt) == "该方法在 3 个数据集上提升 12.5%。"
+        assert simplify_text(prompt) == "该方法在 3 个数据集上提升 12.5%。"
 
     async def test_reply_override_and_call_log(self):
         provider = MockProvider(reply="固定回复")
-        response = await provider.chat(system="s", user="u", task="humanize")
+        response = await provider.chat(system="s", user="u", task="simplify")
         assert response.text == "固定回复"
-        assert provider.calls == ["humanize"]
+        assert provider.calls == ["simplify"]
 
     async def test_generic_task_echoes_prompt(self):
         provider = MockProvider()

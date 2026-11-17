@@ -33,7 +33,7 @@ from app.providers import build_provider  # noqa: E402
 from app.schemas import resolve_schema  # noqa: E402
 from app.settings import PipelineConfig, Settings, load_pipeline_config  # noqa: E402
 
-ALL_STEPS = ("schema", "rules", "repair", "format", "humanize")
+ALL_STEPS = ("schema", "rules", "repair", "format", "simplify")
 
 
 def config_with(enabled: tuple[str, ...], *, audit: bool = True) -> PipelineConfig:
@@ -108,18 +108,23 @@ def percentile(values: list[float], ratio: float) -> float:
     return float(ordered[index])
 
 
-async def rescore(settings: Settings, provider, sample: dict[str, Any], text: str) -> float | None:
-    """用同一套规则给文本打分（只跑 schema + rules，不写审计），使优化前后得分可比。"""
+async def rescore(
+    settings: Settings, provider, sample: dict[str, Any], text: str
+) -> tuple[float | None, dict[str, float | None]]:
+    """用同一套规则给文本打分（只跑 schema + rules，不写审计），使优化前后得分可比。
+
+    同时返回维度明细，通俗度才能与总分用完全相同的口径测量。
+    """
     result = await optimize(
         text,
-        schema=sample.get("schema") or "paper",
+        schema=sample.get("schema", "paper"),
         instruction=sample.get("instruction", ""),
         input_text=sample.get("input_text", ""),
         provider=provider,
         settings=settings,
         config=config_with(("schema", "rules"), audit=False),
     )
-    return result.score
+    return result.score, result.dimensions
 
 
 def load_dataset(path: Path) -> list[dict[str, Any]]:
@@ -139,8 +144,9 @@ async def evaluate(args: argparse.Namespace) -> int:
     settings = Settings(provider=args.provider, audit_path=args.audit)
     provider = build_provider(settings)
     pipeline = load_pipeline_config(args.config) if args.config else PipelineConfig()
-    if args.humanize:
-        pipeline = pipeline.with_step("humanize", enabled=True)
+    if args.simplify:
+        # 散文改写本就默认开启；这个开关的作用是允许改写结构化字段。
+        pipeline = pipeline.with_step("simplify", prose_only=False)
     style = next(
         (step.reference_style for step in pipeline.steps if step.name == "format"),
         "gb-t-7714",
@@ -161,9 +167,9 @@ async def evaluate(args: argparse.Namespace) -> int:
 
     rows: list[dict[str, Any]] = []
     for sample in samples:
-        schema_name = sample.get("schema") or "paper"
+        schema_name = sample.get("schema", "paper")
         before_strict = strict_validate(sample["raw_output"], schema_name)
-        before_score = await rescore(settings, provider, sample, sample["raw_output"])
+        before_score, before_dims = await rescore(settings, provider, sample, sample["raw_output"])
         result = await optimize(
             sample["raw_output"],
             schema=schema_name,
@@ -177,9 +183,11 @@ async def evaluate(args: argparse.Namespace) -> int:
         )
         if isinstance(result.final_output, dict):
             dumped = json.dumps(result.final_output, ensure_ascii=False)
-            after_score = await rescore(settings, provider, sample, dumped)
+            after_score, after_dims = await rescore(settings, provider, sample, dumped)
         else:
-            after_score = result.score
+            # 散文输出必须按改写后的文本重新测量：rules 跑在 simplify 之前，
+            # 直接沿用 result.dimensions 会把"改前"的分数当成"改后"。
+            after_score, after_dims = await rescore(settings, provider, sample, str(result.final_output))
         fields_ok, field_problems = fields_match(result.final_output, sample.get("expect") or {})
         facts_ok, missing_numbers = facts_preserved(sample, result.final_output)
         ref_hits, ref_total = reference_compliance(result.final_output, style)
@@ -194,6 +202,8 @@ async def evaluate(args: argparse.Namespace) -> int:
                 "expect_matched": expect_valid == result.valid,
                 "score_before": before_score,
                 "score_after": after_score,
+                "plainness_before": before_dims.get("plainness"),
+                "plainness_after": after_dims.get("plainness"),
                 "fields_ok": fields_ok,
                 "field_problems": "; ".join(field_problems),
                 "facts_ok": facts_ok,
@@ -227,6 +237,10 @@ def metric_table(rows: list[dict[str, Any]], latency_budget_ms: int) -> list[tup
     facts_rate = sum(1 for r in changed if r["facts_ok"]) / len(changed) if changed else 1.0
     scores_before = [r["score_before"] for r in rows if r["score_before"] is not None]
     scores_after = [r["score_after"] for r in rows if r["score_after"] is not None]
+    plain_before = [r["plainness_before"] for r in rows if r["plainness_before"] is not None]
+    plain_after = [r["plainness_after"] for r in rows if r["plainness_after"] is not None]
+    plain_delta = statistics.fmean(plain_after) - statistics.fmean(plain_before) if plain_before else 0.0
+    plain_mean_after = statistics.fmean(plain_after) if plain_after else 0.0
     mean_delta = (
         statistics.fmean(scores_after) - statistics.fmean(scores_before) if scores_before and scores_after else 0.0
     )
@@ -255,6 +269,12 @@ def metric_table(rows: list[dict[str, Any]], latency_budget_ms: int) -> list[tup
             facts_rate == 1.0,
         ),
         ("平均分变化", f"{mean_delta:+.3f}", "≥ +0.1", mean_delta >= 0.1),
+        (
+            "通俗度（plainness）",
+            f"{plain_mean_after:.3f}（较优化前 {plain_delta:+.3f}）",
+            "均值 ≥ 0.8",
+            plain_mean_after >= 0.8,
+        ),
         (
             "修复成功率",
             "未触发" if adoption is None else f"{adoption:.1%}（{len(adopted)}/{len(triggered)}）",
@@ -297,12 +317,17 @@ def write_report(args: argparse.Namespace, rows: list[dict[str, Any]], style: st
         "",
         "## 逐条结果",
         "",
-        "| id | schema | 优化前 | 优化后 | 得分前→后 | 关键字段 | 事实保持 | 修复 | 降级 |",
-        "| ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ |",
+        "| id | schema | 优化前 | 优化后 | 得分前→后 | 通俗度前→后 | 关键字段 | 事实保持 | 修复 | 降级 |",
+        "| ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ |",
     ]
     for row in rows:
         score_before = "-" if row["score_before"] is None else f"{row['score_before']:.2f}"
         score_after = "-" if row["score_after"] is None else f"{row['score_after']:.2f}"
+        plain_pair = (
+            "无此维度"
+            if row["plainness_before"] is None or row["plainness_after"] is None
+            else f"{row['plainness_before']:.2f}→{row['plainness_after']:.2f}"
+        )
         if row["fields_ok"] is None:
             fields = "无断言"
         elif row["fields_ok"]:
@@ -310,13 +335,14 @@ def write_report(args: argparse.Namespace, rows: list[dict[str, Any]], style: st
         else:
             fields = f"未通过（{row['field_problems']}）"
         lines.append(
-            "| {id} | {schema} | {before} | {after} | {sb}→{sa} | {fields} | {facts} | {repair} | {deg} |".format(
+            "| {id} | {schema} | {before} | {after} | {sb}→{sa} | {plain} | {fields} | {facts} | {repair} | {deg} |".format(
                 id=row["id"],
                 schema=row["schema"],
                 before="valid" if row["before_strict_valid"] else "invalid",
                 after="valid" if row["after_valid"] else "invalid",
                 sb=score_before,
                 sa=score_after,
+                plain=plain_pair,
                 fields=fields,
                 facts="通过" if row["facts_ok"] else f"未通过（{row['missing_numbers']}）",
                 repair=("采纳" if row["repair_adopted"] else "拒绝" if row["repaired"] else "未触发"),
@@ -366,7 +392,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--audit", default=str(ROOT / "data" / "audit.jsonl"))
     parser.add_argument("--timeout-ms", type=int, default=8000)
     parser.add_argument("--latency-budget-ms", type=int, default=300, help="不修复时的 P95 延迟目标")
-    parser.add_argument("--humanize", action="store_true", help="评估时开启拟人化重写")
+    parser.add_argument("--simplify", action="store_true", help="评估时额外开启结构化字段的通俗化改写")
     parser.add_argument("--live", action="store_true", help="调用模型重新生成 raw_output")
     return parser.parse_args(argv)
 

@@ -14,12 +14,14 @@ from app.audit import AuditLog
 from app.optimizer.context import StepContext
 from app.optimizer.steps import REGISTRY
 from app.optimizer.steps.base import StepResult
+from app.optimizer.steps.rules import RulesStep
 from app.providers import build_provider
 from app.providers.base import BaseProvider
 from app.schemas import resolve_schema
 from app.settings import (
     PipelineConfig,
     Settings,
+    StepConfig,
     apply_overrides,
     get_pipeline_config,
     get_settings,
@@ -90,8 +92,19 @@ async def _run_steps(ctx: StepContext) -> list[dict[str, Any]]:
                 ms=int((time.perf_counter() - started) * 1000),
             )
             ctx.errors.append(f"step_error({step_config.name})")
-        results.append(result.as_dict())
+        recorded = result.as_dict()
+        if step_config.name == "simplify" and "采纳通俗化重写" in ctx.changes:
+            # rules 跑在 simplify 之前；改写发生后不重算，score 描述的就只是输入而非交付物。
+            await _remeasure(ctx)
+            recorded["score_after"] = ctx.score
+        results.append(recorded)
     return results
+
+
+async def _remeasure(ctx: StepContext) -> None:
+    """改写之后重算一次评分，只更新上下文，不再产生第二个 rules 步骤。"""
+    config = ctx.config.step("rules") or StepConfig(name="rules")
+    await RulesStep(config, ctx.settings).run(ctx)
 
 
 def _final_output(ctx: StepContext) -> Any:
@@ -112,7 +125,7 @@ async def optimize(
     settings: Settings | None = None,
     config: PipelineConfig | None = None,
     repair: bool | None = None,
-    humanize: bool | None = None,
+    simplify: bool | None = None,
     fmt: bool | None = None,
     score: bool | None = None,
     strict: bool | None = None,
@@ -127,7 +140,7 @@ async def optimize(
     pipeline = pipeline.model_copy(deep=True)
 
     # 单次请求的开关直接映射到步骤启用状态，保持对外只有 optimize() 一个入口。
-    for name, flag in (("repair", repair), ("humanize", humanize), ("format", fmt), ("rules", score)):
+    for name, flag in (("repair", repair), ("simplify", simplify), ("format", fmt), ("rules", score)):
         if flag is not None:
             pipeline = pipeline.with_step(name, enabled=bool(flag))
     if strict is not None:
@@ -215,8 +228,12 @@ async def optimize(
             "raw_output": raw_output,
             "final_output": result.final_output,
         }
-        # 调用方（如 harness 驱动）可补充来源信息，但不得覆盖核心键。
+        # 调用方（如 harness 驱动）可补充来源信息，但不得覆盖核心键：
+        # 冲突键不静默丢弃，而是记进 errors，让丢数据这件事本身可见。
         for key, value in (audit_extra or {}).items():
-            record.setdefault(key, value)
+            if key in record:
+                record["errors"] = [*record["errors"], f"audit_extra_key_conflict({key})"]
+            else:
+                record[key] = value
         log.write(record)
     return result

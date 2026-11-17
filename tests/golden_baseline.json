@@ -1,7 +1,7 @@
 {
   "g001": {
     "valid": true,
-    "score": 0.927,
+    "score": 0.942,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -23,7 +23,7 @@
   },
   "g002": {
     "valid": true,
-    "score": 0.9,
+    "score": 0.925,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -33,7 +33,7 @@
   },
   "g003": {
     "valid": true,
-    "score": 0.94,
+    "score": 0.955,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -52,7 +52,7 @@
   },
   "g004": {
     "valid": true,
-    "score": 0.64,
+    "score": 0.705,
     "repaired": true,
     "markers": [],
     "final_output": {
@@ -66,7 +66,7 @@
   },
   "g005": {
     "valid": true,
-    "score": 0.976,
+    "score": 0.982,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -114,7 +114,7 @@
   },
   "g008": {
     "valid": true,
-    "score": 0.96,
+    "score": 0.97,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -127,7 +127,7 @@
   },
   "g009": {
     "valid": true,
-    "score": 0.98,
+    "score": 0.874,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -146,7 +146,7 @@
   },
   "g010": {
     "valid": false,
-    "score": 0.6,
+    "score": 0.904,
     "repaired": true,
     "markers": [
       "repair_rejected"
@@ -155,7 +155,7 @@
   },
   "g011": {
     "valid": true,
-    "score": 0.93,
+    "score": 0.945,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -178,11 +178,32 @@
   },
   "g012": {
     "valid": false,
-    "score": 0.6,
+    "score": 0.946,
     "repaired": true,
     "markers": [
       "repair_rejected"
     ],
     "final_output": "{\"dataset\": \"A\", \"value\": \"91.2\"}"
+  },
+  "g013": {
+    "valid": true,
+    "score": 0.712,
+    "repaired": false,
+    "markers": [],
+    "final_output": "实验表明，本文方法在 3 个公开数据集上取得了 12.5% 的 Top-1 准确率提升，性能优于对比方法。"
+  },
+  "g014": {
+    "valid": true,
+    "score": 0.875,
+    "repaired": false,
+    "markers": [],
+    "final_output": "该方法或许可以在某些情况下被用于相关任务；受制于算力，其有效性有待进一步验证。"
+  },
+  "g015": {
+    "valid": true,
+    "score": 0.952,
+    "repaired": false,
+    "markers": [],
+    "final_output": "我们在 2 个数据集上做了 5 组消融实验，结果是正例召回率上升。"
   }
 }

@@ -31,7 +31,7 @@ class Options(BaseModel):
     score: bool | None = None
     repair: bool | None = None
     format: bool | None = None
-    humanize: bool | None = None
+    simplify: bool | None = None
     strict: bool | None = None
     timeout_ms: int | None = Field(default=None, ge=50, le=120000)
 
@@ -112,7 +112,7 @@ async def _optimize_output(
         settings=app.state.settings,
         config=app.state.pipeline,
         repair=options.repair,
-        humanize=options.humanize,
+        simplify=options.simplify,
         fmt=options.format,
         score=options.score,
         strict=options.strict,
