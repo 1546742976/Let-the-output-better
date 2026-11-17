@@ -5,14 +5,18 @@
 
 from __future__ import annotations
 
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.harness.base import HarnessUnavailable
+from app.harness.command import resolve_allowed_command
 
 DEFAULT_PIPELINE_PATH = Path("config") / "pipeline.yaml"
 SUPPORTED_PROVIDERS = ("mock", "openai")
@@ -33,6 +37,17 @@ class Settings(BaseSettings):
     fail_open: bool = Field(default=True, alias="OPTIMIZE_FAIL_OPEN")
     audit_path: str = Field(default="data/audit.jsonl", alias="AUDIT_PATH")
 
+    # harness 驱动属实验面，默认关闭；命令只能来自这里，绝不进 config/pipeline.yaml。
+    harness_enabled: bool = Field(default=False, alias="HARNESS_ENABLED")
+    harness_command: str = Field(default="", alias="HARNESS_COMMAND")
+    harness_args: list[str] = Field(default_factory=list, alias="HARNESS_ARGS")
+    harness_allowed_commands: list[str] = Field(default_factory=list, alias="HARNESS_ALLOWED_COMMANDS")
+    harness_cwd: str = Field(default="", alias="HARNESS_CWD")
+    harness_timeout_ms: int = Field(default=120000, alias="HARNESS_TIMEOUT_MS")
+    harness_max_output_bytes: int = Field(default=262144, alias="HARNESS_MAX_OUTPUT_BYTES")
+    harness_max_concurrency: int = Field(default=1, alias="HARNESS_MAX_CONCURRENCY")
+    harness_env_allow: str = Field(default="", alias="HARNESS_ENV_ALLOW")
+
     model_config = SettingsConfigDict(
         env_file=ENV_FILE,
         env_file_encoding="utf-8",
@@ -41,12 +56,48 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
+    @field_validator("harness_args", "harness_allowed_commands", mode="before")
+    @classmethod
+    def _parse_json_list(cls, value: Any) -> list[str]:
+        """两个列表用 JSON 数组表达：路径里可能出现空格与反斜杠，按分隔符切会切坏。"""
+        if value is None or value == "":
+            return []
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except ValueError as exc:
+                raise ValueError(f"应为 JSON 字符串数组，解析失败：{exc}") from exc
+            value = parsed
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            raise ValueError("应为字符串数组")
+        return [item for item in value if item.strip()]
+
+    @property
+    def harness_env_list(self) -> list[str]:
+        return [name.strip() for name in self.harness_env_allow.split(",") if name.strip()]
+
     @model_validator(mode="after")
     def _check_provider(self) -> Settings:
         if self.provider not in SUPPORTED_PROVIDERS:
             raise ValueError(f"PROVIDER 仅支持 {SUPPORTED_PROVIDERS}，当前为 {self.provider!r}")
         if self.provider == "openai" and not self.openai_api_key:
             raise ValueError("PROVIDER=openai 必须设置 OPENAI_API_KEY")
+        return self
+
+    @model_validator(mode="after")
+    def _check_harness(self) -> Settings:
+        """启用即校验：让"命令不在白名单"这类问题在启动期暴露，而不是第一次调用时。"""
+        if not self.harness_enabled:
+            return self
+        try:
+            resolve_allowed_command(self.harness_command, self.harness_allowed_commands)
+        except HarnessUnavailable as exc:
+            # 统一成 ValidationError，与其它配置错误的暴露方式一致。
+            raise ValueError(str(exc)) from exc
+        if self.harness_cwd and not Path(self.harness_cwd).is_dir():
+            raise ValueError(f"HARNESS_CWD 不是已存在的目录：{self.harness_cwd}")
+        if self.harness_timeout_ms < 100:
+            raise ValueError("HARNESS_TIMEOUT_MS 不得小于 100")
         return self
 
 
