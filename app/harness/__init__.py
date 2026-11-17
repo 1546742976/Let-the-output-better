@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from app.settings import Settings
 
 
-def __getattr__(name: str) -> type["ApiHarness"]:
+def __getattr__(name: str) -> type[ApiHarness]:
     """``ApiHarness`` 按需导入。
 
     它是本包里唯一需要 ``app.providers`` 的成员，而 ``app.providers`` 反指

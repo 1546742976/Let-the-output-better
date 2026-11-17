@@ -102,9 +102,14 @@ class RulesStep(BaseStep):
 
         ctx.dimensions = dimensions
         scored = {key: value for key, value in dimensions.items() if value is not None}
-        total_weight = sum(weights.get(key, 0.0) for key in scored)
+        # 必须用 fsum 而不是 sum：sum() 自 3.12 起改用补偿求和，同一组权重在 3.11 上
+        # 少 1 ULP（0.9999999999999999），恰好把 0.6125 这类值推到 round() 的两可边沿，
+        # 得分就会随解释器版本变 0.001——"确定性可复现评分"不允许这种事。
+        total_weight = math.fsum(weights.get(key, 0.0) for key in scored)
         score = (
-            sum(weights.get(key, 0.0) * value for key, value in scored.items()) / total_weight if total_weight else 0.0
+            math.fsum(weights.get(key, 0.0) * value for key, value in scored.items()) / total_weight
+            if total_weight
+            else 0.0
         )
         ctx.score = round(score, 3)
         threshold = ctx.settings.score_threshold

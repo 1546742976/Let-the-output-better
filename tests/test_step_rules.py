@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from app.optimizer.steps.rules import RulesStep, citation_is_grounded, normalize_text, numeric_tokens
 from app.plain import report
 from app.schemas import Experiment, Paper
@@ -147,6 +149,25 @@ class TestWeightOverrides:
     def test_documented_default_weights(self):
         assert PROSE_WEIGHTS == {"plainness": 0.35, "confidence": 0.3, "concision": 0.2, "preservation": 0.15}
         assert STRUCTURED_WEIGHTS == {"completeness": 0.3, "format": 0.25, "grounding": 0.25, "plainness": 0.2}
+
+    async def test_weighted_average_is_version_independent(self, make_ctx, settings):
+        """评分口径必须落在精确求和上，不能随解释器版本漂 0.001。
+
+        `sum()` 自 3.12 起改用补偿求和：0.35+0.3+0.2+0.15 在 3.11 上是
+        0.9999999999999999，在 3.12+ 上才是 1.0。维度值 (0.75, 0, 1, 1) 这组恰好
+        落在 0.6125 的 round 边沿上，于是同一份输入在 3.11 得 0.613、3.12+ 得 0.612,
+        金标快照因此在 CI 的高版本矩阵里失败。改回朴素 sum 的用例会在 3.11 上红。
+        """
+        assert math.fsum(PROSE_WEIGHTS.values()) == 1.0
+        ctx = make_ctx(raw_output=PLAIN_PROSE, text=PLAIN_PROSE, schema=None, valid=True, input_text="")
+        await RulesStep(rules_config(), settings).run(ctx)
+        scored = {key: value for key, value in ctx.dimensions.items() if value is not None}
+        expected = round(
+            math.fsum(PROSE_WEIGHTS[key] * value for key, value in scored.items())
+            / math.fsum(PROSE_WEIGHTS[key] for key in scored),
+            3,
+        )
+        assert ctx.score == expected
 
     async def test_confidence_punishes_ungrounded_hedging(self, make_ctx, settings):
         """防御性写作实测样例：原检测器给它满分，现在必须扣分。"""

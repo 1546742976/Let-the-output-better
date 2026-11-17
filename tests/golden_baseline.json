@@ -194,7 +194,7 @@
   },
   "g014": {
     "valid": true,
-    "score": 0.613,
+    "score": 0.612,
     "repaired": false,
     "markers": [],
     "final_output": "该方法或许可以在某些情况下被用于相关任务；受制于算力，其有效性有待进一步验证。"

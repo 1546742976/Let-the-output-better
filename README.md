@@ -520,7 +520,8 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 
 - **步骤级隔离**：单个步骤异常不会中断管线，仅记录原因并继续后续步骤。
 - **硬超时**：整条管线由 `asyncio.wait_for` 包裹，超时按 fail-open 处理，不会挂起调用方。
-- **采纳闸门**：修复结果须同时满足“通过校验”与“得分不降低”；通俗化改写须满足事实不变（数值、引用锚点）且没有变得更长，否则丢弃并在审计中标记 `repair_rejected` 或 `simplify_rejected`。
+- **采纳闸门**：修复结果须同时满足“通过校验”与“得分不降低”；通俗化改写按顺序须满足事实不变（数值、引用锚点）→ 研究边界不丢失 → 没有变得更长，否则丢弃并在审计中标记 `repair_rejected` 或 `simplify_rejected`。
+- **跨版本可复现**：加权评分用 `math.fsum` 精确求和，而不是 `sum()`。`sum()` 自 Python 3.12 起改用补偿求和，同一组权重在 3.11 与 3.12+ 相差 1 ULP，会把得分推到 `round()` 的两可边沿——同一份输入不应因解释器版本而变 0.001。
 - **启动期校验**：Provider 配置缺失或密钥为空时在启动阶段直接失败，避免运行期才暴露问题。
 - **审计降级**：审计写入失败仅记录警告，不影响主流程返回结果。
 
@@ -605,7 +606,7 @@ pytest --cov=app --cov-report=term-missing
 - 回归测试：以金标集的 `final_output` 作为基线快照（`tests/golden_baseline.json`，`OPTIMIZE_UPDATE_GOLDEN=1 pytest` 可重写）。
 - 导入隔离测试：`tests/test_import_isolation.py` 在干净子解释器里逐个模块执行 `import X`，断言每个对外模块都能作为**第一个**被导入的模块加载。这条不变式必须单独测：跑完整套件时 `app.main` 总是先被导入，模块间的环被导入顺序掩盖，`import app.settings` 单独失败这种事永远不会暴露。
 
-v0.5 实测：364 项用例通过，`app/` 行与分支综合覆盖率 92.07%（CI 门槛 80%）；`tests/test_plain.py` 覆盖词表检测（重叠短语只计一次、正当 hedge 不扣分、英文句式命中、plainness 随命中数单调下降）；除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
+v0.5 实测：365 项用例通过，`app/` 行与分支综合覆盖率 92.07%（CI 门槛 80%）；测试矩阵覆盖 Python 3.11–3.14 与 Windows，**同一份输入在这些版本上得分逐位一致**——加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 这类值推到 `round()` 的两可边沿（金标快照曾在 3.12+ 上因此失败、3.11 却过）。`tests/test_plain.py` 覆盖词表检测（重叠短语只计一次、正当 hedge 不扣分、英文句式命中、plainness 随命中数单调下降）；除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
 
 ## 14. 版本规划
 
