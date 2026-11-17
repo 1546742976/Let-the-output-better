@@ -73,6 +73,7 @@ class CommandHarness(BaseHarness):
         self,
         *,
         command: str,
+        name: str | None = None,
         args: list[str] | None = None,
         allowed_commands: list[str] | None = None,
         cwd: str | None = None,
@@ -80,6 +81,8 @@ class CommandHarness(BaseHarness):
         max_concurrency: int = 1,
         env_allow: tuple[str, ...] = (),
     ) -> None:
+        if name is not None:
+            self.name = name
         self.command = command
         self.args = list(args or [])
         self.allowed_commands = list(allowed_commands or [])
@@ -147,10 +150,12 @@ class CommandHarness(BaseHarness):
                 text=text,
                 exit_code=exit_code,
                 ms=int((time.perf_counter() - started) * 1000),
+                kind="subprocess",
                 source=source,
                 truncated=truncated,
                 stderr_tail=_tail_text(stderr, STDERR_TAIL_BYTES),
                 bytes=data_bytes,
+                target=argv[1] if len(argv) > 1 else argv[0],
             )
 
     async def _exchange(self, proc: asyncio.subprocess.Process, task: str) -> tuple[bytes, bytes, bool]:

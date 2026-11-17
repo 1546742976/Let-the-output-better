@@ -126,9 +126,10 @@ class TestConcurrency:
 
 
 class TestSettingsValidation:
-    def test_enabled_without_command_fails_at_startup(self):
-        with pytest.raises(ValueError, match="HARNESS_COMMAND"):
-            Settings(_env_file=None, harness_enabled=True, harness_command="", harness_allowed_commands=[])
+    def test_enabled_without_command_is_allowed(self):
+        """命令不再是必需项：发现式 profile 与 API 形态同样能提供 harness。"""
+        settings = Settings(_env_file=None, harness_enabled=True, harness_command="", harness_allowed_commands=[])
+        assert settings.harness_command == ""
 
     def test_enabled_with_unlisted_command_fails_at_startup(self):
         with pytest.raises(ValueError, match="白名单"):

@@ -30,23 +30,31 @@ class HarnessBusy(HarnessError):
 @dataclass
 class HarnessRun:
     text: str
-    exit_code: int
     ms: int
+    #: 子进程退出码；无进程形态（API 直连）为 None，不谎报 0。
+    exit_code: int | None = None
+    kind: str = "subprocess"
     source: str = "stdout"
     truncated: bool = False
     stderr_tail: str = ""
     bytes: int = 0
+    #: 解析后的绝对执行目标，供审计留痕（路径来自发现结果，需可追溯）。
+    target: str = ""
 
     def as_audit(self, name: str) -> dict[str, Any]:
-        """审计摘要：不落 stderr 与正文，只记来源与代价。"""
-        return {
+        """审计摘要：不落 stderr 与正文，只记来源、身份与代价。"""
+        audit: dict[str, Any] = {
             "name": name,
+            "kind": self.kind,
             "exit_code": self.exit_code,
             "ms": self.ms,
             "source": self.source,
             "truncated": self.truncated,
             "bytes": self.bytes,
         }
+        if self.target:
+            audit["target"] = self.target
+        return audit
 
 
 class BaseHarness(ABC):

@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     harness_max_output_bytes: int = Field(default=262144, alias="HARNESS_MAX_OUTPUT_BYTES")
     harness_max_concurrency: int = Field(default=1, alias="HARNESS_MAX_CONCURRENCY")
     harness_env_allow: str = Field(default="", alias="HARNESS_ENV_ALLOW")
+    #: 逗号分隔的 profile 白名单（如 "codex,openai-api"）；空表示全部可用。
+    harness_providers: str = Field(default="", alias="HARNESS_PROVIDERS")
+    #: 默认 profile；未设时取第一个可用的。
+    harness_profile: str = Field(default="", alias="HARNESS_PROFILE")
+    #: 关闭后完全不做文件系统扫描，只认 .env 里的显式命令。
+    harness_detect: bool = Field(default=True, alias="HARNESS_DETECT")
+    harness_probe_timeout_ms: int = Field(default=5000, alias="HARNESS_PROBE_TIMEOUT_MS")
 
     model_config = SettingsConfigDict(
         env_file=ENV_FILE,
@@ -86,18 +93,25 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_harness(self) -> Settings:
-        """启用即校验：让"命令不在白名单"这类问题在启动期暴露，而不是第一次调用时。"""
+        """启用即校验：让"命令不在白名单"这类问题在启动期暴露，而不是第一次调用时。
+
+        ``HARNESS_COMMAND`` 不再是必需项——发现式 profile 与 API 形态同样能提供 harness，
+        但一旦显式写了命令，它就必须通过白名单校验。
+        """
         if not self.harness_enabled:
             return self
-        try:
-            resolve_allowed_command(self.harness_command, self.harness_allowed_commands)
-        except HarnessUnavailable as exc:
-            # 统一成 ValidationError，与其它配置错误的暴露方式一致。
-            raise ValueError(str(exc)) from exc
+        if self.harness_command:
+            try:
+                resolve_allowed_command(self.harness_command, self.harness_allowed_commands)
+            except HarnessUnavailable as exc:
+                # 统一成 ValidationError，与其它配置错误的暴露方式一致。
+                raise ValueError(str(exc)) from exc
         if self.harness_cwd and not Path(self.harness_cwd).is_dir():
             raise ValueError(f"HARNESS_CWD 不是已存在的目录：{self.harness_cwd}")
         if self.harness_timeout_ms < 100:
             raise ValueError("HARNESS_TIMEOUT_MS 不得小于 100")
+        if self.harness_probe_timeout_ms < 100:
+            raise ValueError("HARNESS_PROBE_TIMEOUT_MS 不得小于 100")
         return self
 
 

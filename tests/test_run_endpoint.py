@@ -178,4 +178,29 @@ def test_error_detail_never_leaks_the_command_line(tmp_path: Path, monkeypatch: 
 def test_config_endpoint_reports_harness_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     with client_with(monkeypatch, tmp_path, args=["-c", ECHO], enabled=False) as client:
         harness = client.get("/v1/config").json()["harness"]
-    assert harness == {"enabled": False, "name": None, "timeout_ms": 15000, "max_concurrency": 1}
+    assert harness == {
+        "enabled": False,
+        "name": None,
+        "timeout_ms": 15000,
+        "max_concurrency": 1,
+        "detect": True,
+        "api_ready": False,
+        "options": [],
+    }
+
+
+def test_config_lists_assembled_profiles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """options 必须来自实际装配结果，页面下拉才有依据。"""
+    with client_with(monkeypatch, tmp_path, args=["-c", ECHO]) as client:
+        harness = client.get("/v1/config").json()["harness"]
+    assert "command" in harness["options"]
+    assert harness["name"] in harness["options"]
+
+
+def test_run_can_select_profile_by_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    with client_with(monkeypatch, tmp_path, args=["-c", ECHO]) as client:
+        ok = client.post("/v1/run", json={"task": "x", "harness": "command"})
+        unknown = client.post("/v1/run", json={"task": "x", "harness": "not-a-profile"})
+    assert ok.status_code == 200
+    assert unknown.status_code == 422
+    assert "not-a-profile" in unknown.json()["detail"]

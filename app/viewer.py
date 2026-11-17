@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,9 @@ from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.harness.detect import as_dict, scan
+from app.harness.detect import probe as probe_candidate
+from app.harness.profiles import PROFILES
 from app.schemas import SCHEMA_REGISTRY
 from app.settings import apply_overrides
 
@@ -70,6 +74,33 @@ async def index() -> HTMLResponse:
     return HTMLResponse(content=page)
 
 
+def _available_profiles(request: Request) -> dict[str, Any]:
+    harness = getattr(request.app.state, "harness", None)
+    if harness is None:
+        return {}
+    profiles = getattr(harness, "profiles", None)
+    if callable(profiles):
+        return profiles()
+    return {getattr(harness, "name", "command"): harness}
+
+
+def _harness_view(request: Request) -> dict[str, Any]:
+    """页面据此决定下拉项与按钮状态；可用集合来自实际装配结果，不是配置文件猜测。"""
+    settings = request.app.state.settings
+    harness = getattr(request.app.state, "harness", None)
+    members = _available_profiles(request)
+    default = getattr(harness, "default", None) or next(iter(members), None)
+    return {
+        "enabled": settings.harness_enabled,
+        "name": default,
+        "timeout_ms": settings.harness_timeout_ms,
+        "max_concurrency": settings.harness_max_concurrency,
+        "detect": settings.harness_detect,
+        "api_ready": bool(settings.openai_api_key),
+        "options": sorted(members),
+    }
+
+
 @router.get("/v1/config")
 async def runtime_config(request: Request) -> dict[str, Any]:
     """页面右栏与表单默认值所需的环境信息，取值口径与实际执行一致（含 pipeline.yaml 覆盖）。"""
@@ -84,12 +115,7 @@ async def runtime_config(request: Request) -> dict[str, Any]:
         "max_repair_retries": settings.max_repair_retries,
         "fail_open": settings.fail_open,
         "audit_path": settings.audit_path,
-        "harness": {
-            "enabled": settings.harness_enabled,
-            "name": "command" if settings.harness_enabled else None,
-            "timeout_ms": settings.harness_timeout_ms,
-            "max_concurrency": settings.harness_max_concurrency,
-        },
+        "harness": _harness_view(request),
         "reference_style": format_step.reference_style if format_step is not None else "gb-t-7714",
         "schema_strict": schema_step.strict if schema_step is not None else False,
         "steps": {step.name: {"enabled": step.enabled, "strict": step.strict} for step in pipeline.steps},
@@ -109,6 +135,36 @@ async def audit_history(
     limit: int = Query(default=DEFAULT_AUDIT_ITEMS, ge=1, le=MAX_AUDIT_ITEMS),
 ) -> dict[str, Any]:
     return read_audit_tail(request.app.state.settings.audit_path, limit)
+
+
+@router.get("/v1/harnesses")
+async def harness_status(
+    request: Request,
+    probe: bool = Query(default=False, description="为 true 时才执行版本/登录态探测"),
+) -> dict[str, Any]:
+    """本地 harness 健康表。
+
+    默认只做文件系统扫描，**不执行任何被发现的程序**；``probe=true`` 才会按
+    profile 常量参数跑一次 ``--version`` 之类的探测，且受独立短超时约束。
+    """
+    settings = request.app.state.settings
+    candidates = scan()
+    probed = bool(probe and settings.harness_enabled)
+    if probed:
+        timeout_s = settings.harness_probe_timeout_ms / 1000
+        candidates = list(
+            await asyncio.gather(*(probe_candidate(candidate, timeout_s=timeout_s) for candidate in candidates))
+        )
+    available = sorted(_available_profiles(request))
+    return {
+        "enabled": settings.harness_enabled,
+        "selected": _harness_view(request)["options"],
+        "available": available,
+        "api_ready": bool(settings.openai_api_key),
+        "probed": probed,
+        "detected": [as_dict(candidate) for candidate in candidates],
+        "notes": {profile.name: list(profile.notes) for profile in PROFILES.values()},
+    }
 
 
 def mount(app: FastAPI) -> None:
