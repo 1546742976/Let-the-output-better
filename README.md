@@ -603,8 +603,9 @@ pytest --cov=app --cov-report=term-missing
 - 判定标准单测：`tests/test_qualifications.py` 逐条比对 `data/qualifications.jsonl` 的 `expect`，并断言两侧不重叠——同一段文字里“无据句”自信度为 0、“边界句”为 1；另含同族名词互认（句子写“样本量”、原文写“被试”）、单位数指称（“3 个数据集”）与停用词（句首 `This`/`Results` 不算标识符）。
 - 闸门单测：断言改写把判定为边界的限定语删掉时**整段拒绝**（`simplify_rejected`），无原文时未验证边界同样受保护。
 - 回归测试：以金标集的 `final_output` 作为基线快照（`tests/golden_baseline.json`，`OPTIMIZE_UPDATE_GOLDEN=1 pytest` 可重写）。
+- 导入隔离测试：`tests/test_import_isolation.py` 在干净子解释器里逐个模块执行 `import X`，断言每个对外模块都能作为**第一个**被导入的模块加载。这条不变式必须单独测：跑完整套件时 `app.main` 总是先被导入，模块间的环被导入顺序掩盖，`import app.settings` 单独失败这种事永远不会暴露。
 
-v0.5 实测：347 项用例通过，`app/` 行与分支综合覆盖率 92.12%（CI 门槛 80%）；`tests/test_plain.py` 覆盖词表检测（重叠短语只计一次、正当 hedge 不扣分、英文句式命中、plainness 随命中数单调下降）；除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
+v0.5 实测：364 项用例通过，`app/` 行与分支综合覆盖率 92.07%（CI 门槛 80%）；`tests/test_plain.py` 覆盖词表检测（重叠短语只计一次、正当 hedge 不扣分、英文句式命中、plainness 随命中数单调下降）；除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
 
 ## 14. 版本规划
 
