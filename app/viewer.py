@@ -84,6 +84,12 @@ async def runtime_config(request: Request) -> dict[str, Any]:
         "max_repair_retries": settings.max_repair_retries,
         "fail_open": settings.fail_open,
         "audit_path": settings.audit_path,
+        "harness": {
+            "enabled": settings.harness_enabled,
+            "name": "command" if settings.harness_enabled else None,
+            "timeout_ms": settings.harness_timeout_ms,
+            "max_concurrency": settings.harness_max_concurrency,
+        },
         "reference_style": format_step.reference_style if format_step is not None else "gb-t-7714",
         "schema_strict": schema_step.strict if schema_step is not None else False,
         "steps": {step.name: {"enabled": step.enabled, "strict": step.strict} for step in pipeline.steps},
