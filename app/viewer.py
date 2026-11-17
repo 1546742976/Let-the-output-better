@@ -26,32 +26,75 @@ DEFAULT_AUDIT_ITEMS = 50
 MAX_AUDIT_ITEMS = 200
 # 读取窗口上限：避免审计文件很大时为了统计损坏行而解析整个文件。
 MAX_SCANNED_LINES = 2000
+# 反向读取的块大小。窗口只物化 scan_cap 行，不再整文件 read_text() 进内存。
+READ_BLOCK = 65536
+
+
+def _read_tail_window(handle: Any, size: int, cap: int) -> tuple[list[bytes], bool, int]:
+    """从文件尾部按块倒序收集至多 ``cap`` 个非空行。
+
+    返回 ``(window, reached_bof, full_count)``：``window`` 按文件顺序（旧→新），至多
+    ``cap`` 行；``reached_bof`` 表示是否已读到文件头。每块切分时最左一段可能是被块边界
+    截断的半行，留作 ``carry`` 与更左一块拼接，因此单行长度不受 ``READ_BLOCK`` 限制。
+    ``full_count`` 是本次读取实际见到的非空行数——``reached_bof`` 为真时它就是全文件总数，
+    否则只是窗口下界（据此把 ``total_lines`` 标成不精确）。
+    """
+    if size == 0:
+        return [], True, 0
+    out: list[bytes] = []
+    carry = b""
+    pos = size
+    reached_bof = False
+    while pos > 0:
+        start = max(0, pos - READ_BLOCK)
+        handle.seek(start)
+        data = handle.read(pos - start)
+        pos = start
+        parts = (data + carry).split(b"\n")
+        carry = parts[0]
+        # parts[1:] 右边界与上一块对齐，是本次已完整的行；过滤空白行后拼到窗口前部
+        out = [part for part in parts[1:] if part.strip()] + out
+        if pos == 0:
+            reached_bof = True
+            break
+        if len(out) >= cap:
+            break
+    if reached_bof and carry.strip():
+        out = [carry] + out
+    return (out[-cap:] if len(out) > cap else out), reached_bof, len(out)
 
 
 def read_audit_tail(path: str | Path, limit: int) -> dict[str, Any]:
-    """倒序读取审计记录，损坏行跳过。
+    """倒序读取审计记录尾部，损坏行跳过。
 
-    ``skipped`` 只统计本次扫描窗口内的损坏行；``total_lines`` 是整个文件的非空行数。
-    每条记录附带 ``line_no``（文件内 1 基行号）：``request_id`` 由进程内计数器生成，
-    多进程（如多次运行评估脚本）会写出重复 id，因此页面选中态必须用行号区分。
+    只反向读窗口所需的块，不再把整个文件载入内存。``skipped`` 统计扫描窗口内的损坏行。
+    ``reached_bof`` 时 ``total_lines`` 是全文件非空行数、``total_exact`` 为真；窗口被截断
+    （大文件）时 ``total_lines`` 只是下界、``total_exact`` 转假，页面据此不再展示"总数"。
+    每条记录附带 ``line_no``（读到文件头时为全文件 1 基行号，否则为窗口内序号）作为页面
+    选中依据——``request_id`` 已含进程 nonce 不跨进程重号，但行号定位到具体一行更直接。
     """
     audit_path = Path(path)
     wanted = max(1, min(limit, MAX_AUDIT_ITEMS))
+    empty = {"items": [], "path": str(audit_path), "total_lines": 0, "scanned": 0, "skipped": 0, "total_exact": True}
     if not audit_path.exists():
-        return {"items": [], "path": str(audit_path), "total_lines": 0, "scanned": 0, "skipped": 0}
+        return empty
 
-    lines = [line for line in audit_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    offset = max(0, len(lines) - max(wanted * 10, MAX_SCANNED_LINES))
+    scan_cap = max(wanted * 10, MAX_SCANNED_LINES)
+    size = audit_path.stat().st_size
+    with audit_path.open("rb") as handle:
+        window, reached_bof, full_count = _read_tail_window(handle, size, scan_cap)
+
+    # line_no 以全量计数为基准，窗口被截断时仍指向文件内真实行号（未读到的部分不改变其序号）
     items: list[dict[str, Any]] = []
     skipped = 0
-    for line_no in range(len(lines) - 1, offset - 1, -1):
+    for offset, raw in enumerate(reversed(window)):
         try:
-            record = json.loads(lines[line_no])
+            record = json.loads(raw.decode("utf-8", errors="replace"))
         except ValueError:
             skipped += 1
             continue
         if isinstance(record, dict):
-            items.append({**record, "line_no": line_no + 1})
+            items.append({**record, "line_no": full_count - offset})
         else:
             skipped += 1
         if len(items) >= wanted:
@@ -59,9 +102,10 @@ def read_audit_tail(path: str | Path, limit: int) -> dict[str, Any]:
     return {
         "items": items,
         "path": str(audit_path),
-        "total_lines": len(lines),
-        "scanned": len(lines) - offset,
+        "total_lines": full_count,
+        "scanned": len(window),
         "skipped": skipped,
+        "total_exact": reached_bof,
     }
 
 
