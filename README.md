@@ -85,7 +85,7 @@
 ## 3. 设计原则
 
 1. **只做后处理**：不介入模型推理，不改变生成过程，不影响首 Token 延迟。
-2. **接口稳定优先**：对外只暴露 `optimize()` 与 `POST /v1/optimize` 两个入口，内部步骤可替换。
+2. **接口稳定优先**：对外契约只有 `optimize()` 与 `POST /v1/optimize` 两个入口，内部步骤可替换；另附一个本地查看页（`GET /`）与只读历史端点，属调试工具，不构成新的稳定接口。
 3. **失败不放大**：任何优化步骤的异常都以“返回原始输出”收口，禁止因优化器故障导致业务失败。
 4. **结论可追溯**：每个得分都必须能说明来源，每个变更都必须有对应的审计记录。
 5. **默认值即最佳实践**：开箱配置即为经过评估的安全取值，调优属于可选行为。
@@ -198,6 +198,8 @@ mock 模式下，第二条命令应稳定返回 `valid` 与 `score` 字段，全
 > curl -s --data-binary @data/request.example.json -H "content-type: application/json; charset=utf-8" \
 >   -X POST localhost:8000/v1/optimize
 > ```
+
+起服后在浏览器打开 `http://localhost:8000/` 即可使用可视化页面，见 [§7.4](#74-可视化页面)。
 
 ### 6.4 接入真实模型
 
@@ -312,6 +314,28 @@ class CcfVenueStep(BaseStep):
 ```
 
 在 `config/pipeline.yaml` 的 `steps` 列表中登记后立即生效；若校验不通过，将按配置触发修复或直接返回。
+
+### 7.4 可视化页面
+
+起服后访问 `/`，三栏布局：左为历史会话，中为输入与结果流，右为运行环境与优化前后对照。
+
+| 区域 | 内容 | 数据来源 |
+| ------ | ------ | ------ |
+| 历史会话 | schema、状态、得分、耗时、变更标记；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
+| 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关与 `timeout_ms` | `GET /v1/config` |
+| 结果流 | 结论行、步骤时间线（逐步耗时与原因）、三维评分条、变更与标记、错误 | `POST /v1/optimize` 与该次的审计记录 |
+| 运行环境 | provider、阈值、超时、fail_open、引用风格、审计条数、健康灯 | `GET /v1/config`、`GET /healthz` |
+| 前后对照 | 行级 diff，增删分色 | 审计记录的 `raw_output` 与 `final_output` |
+
+局限与注意点：
+
+- 页面是**本地调试工具，无鉴权**，不要暴露到不可信网络。
+- 历史只读 `AUDIT_PATH` 尾部（单次最多 200 条）；多进程共用同一审计文件时，列表会混入其它来源的记录。
+- `request_id` 由进程内计数器生成，多进程会产生重号，因此页面以审计文件的**行号**（`line_no`）作为选中依据。
+- 步骤开关默认取 `pipeline.yaml` 的取值，提交时显式发送布尔值，不再沿用“未设置即跟随配置”的三态语义。
+- 模型输出与审计内容一律按纯文本渲染，测试用例断言页面不存在 `innerHTML` 等注入写法。
+- diff 在前端计算，超过 400 行自动降级为只显示优化后结果。
+- 布局在桌面宽度下为三栏，窄于 1040px 自动折叠为单列；左上按钮可收起历史栏。
 
 ## 8. 配置参考
 
@@ -440,6 +464,8 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 │   ├── settings.py              # 配置加载：.env 与 pipeline.yaml（含优先级合并）
 │   ├── schemas.py               # 学术场景 Pydantic 模型：paper / reference / experiment
 │   ├── textio.py                # 围栏剥离、JSON 抽取、空白归一、提示词加载
+│   ├── viewer.py                # 本地查看页：页面挂载、环境信息、只读审计尾部
+│   ├── web/                     # 页面资源：index.html / styles.css / app.js（零构建）
 │   ├── audit.py                 # JSONL 审计
 │   ├── optimizer/
 │   │   ├── __init__.py          # optimize() 对外入口
