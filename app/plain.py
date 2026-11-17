@@ -26,6 +26,17 @@ AVG_LEN_TARGET = 24.0
 LONG_SENTENCE_CHARS = 40
 LONG_RATIO_TARGET = 0.2
 
+#: 主张后置的固定扣分：先讲限制再讲主张，是防御性写作的典型结构。
+CLAIM_LAST_PENALTY = 0.15
+
+_NOISE = re.compile(r"[^0-9a-z一-鿿]+")
+
+
+def normalize_text(text: str) -> str:
+    """只保留字母、数字与汉字，用于"能否在原文定位"的比较。"""
+    return _NOISE.sub("", text.lower())
+
+
 # 英文只在 ". " 之后切句，避免把 "88.5%"、"CVPR 2023. 页码" 这类数字截断。
 _SENT_SPLIT = re.compile(r"[。！？；!?;\n]+|\.(?=\s|$)")
 _CJK = re.compile(r"[一-鿿]")
@@ -98,8 +109,87 @@ HEDGE = (
     "基本上",
     "较为",
     "相对",
-    "可能在",
-    "可能会",
+    "可能",
+)
+
+#: 证据降级：把已有结论改说成"初步的、探索性的"。这类模板本身不指向任何东西。
+DOWNGRADE = (
+    "探索性证据",
+    "初步迹象",
+    "初步结果",
+    "需谨慎解读",
+    "需要谨慎解读",
+    "不应过度解读",
+    "不可过度推广",
+    "仅供参考的证据",
+    "有限的支持",
+    "或许只能被视为",
+    "充其量",
+)
+
+#: 自我否定：直接撤回或反向限定作者原有论断。
+SELFNEG = (
+    "并不意味着",
+    "并非意味着",
+    "不能据此说明",
+    "不足以说明",
+    "无法证明",
+    "不应被理解为",
+    "不能作为结论",
+)
+
+#: 限制标记：说明这句是"限定"而非主张。它们本身不扣分——真正影响结论的研究
+#: 边界正是用这些词写的，扣分就等于要求模型删掉诚实的范围声明。
+BOUNDARY_CUES = ("仅在", "只在", "限于", "受限于", "尚未在", "未在", "仅适用于", "只适用于")
+
+#: 可核对的领域名词族。同族词在原文里往往换了写法：句子说"样本量"，原文写"24 名被试"。
+#: 逐字匹配会把这类真实边界误判成无据限定，所以按族互认。刻意不含"场景/条件/规模"
+#: 这类泛词——它们在任何一句太极话里都出现，不能证明限定有依据。
+SCOPE_FAMILIES = (
+    ("数据集", "评测集", "基准"),
+    ("样本", "样本量", "被试", "队列"),
+    ("时间范围", "时间窗", "时间段"),
+    ("横截面", "纵向"),
+)
+SCOPE_NOUNS = tuple(noun for family in SCOPE_FAMILIES for noun in family)
+
+#: 指称=能在原文里核对的具体对象：数字、标识符形态的拉丁词、领域名词。
+_REFERENT_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+_REFERENT_LATIN = re.compile(r"\b(?:[A-Za-z0-9]+(?:[-_.][A-Za-z0-9]+)+|[A-Z][A-Za-z0-9]{3,}|\w*\d+\w*)\b")
+#: 句首大写的普通英文词不是标识符，否则 "This may..." 会被当成有指称。
+_LATIN_STOP = frozenset(
+    {
+        "This",
+        "That",
+        "These",
+        "Those",
+        "There",
+        "Their",
+        "They",
+        "It",
+        "Its",
+        "In",
+        "On",
+        "For",
+        "And",
+        "But",
+        "Our",
+        "We",
+        "You",
+        "The",
+        "Although",
+        "Though",
+        "However",
+        "Moreover",
+        "Furthermore",
+        "Results",
+        "Result",
+        "Note",
+        "Noted",
+        "Evidence",
+        "Study",
+        "Works",
+    }
 )
 
 JARGON = (
@@ -151,7 +241,7 @@ EN_PHRASES: dict[str, tuple[tuple[str, str], ...]] = {
 }
 
 #: 硬命中组的扣分权重；语境判定与统计组另算。
-GROUP_WEIGHTS = {"boilerplate": 1.0, "praise": 1.0, "disclaimer": 1.0}
+GROUP_WEIGHTS = {"boilerplate": 1.0, "praise": 1.0, "disclaimer": 1.0, "downgrade": 1.0, "selfneg": 1.0}
 
 #: mock provider 的确定性改写表，与上面的检测词表同源。
 REWRITES = (
@@ -175,6 +265,9 @@ REWRITES = (
     ("在一定程度上", ""),
     ("在某种程度上，", ""),
     ("以上内容仅供参考，", ""),
+    ("这或许只能被视为探索性证据；", ""),
+    ("初步结果需谨慎解读，", ""),
+    ("需谨慎解读。", ""),
     ("如需更多资料请随时告诉我", ""),
     ("如需更多论文信息请随时告诉我", ""),
     ("本文所提出的方法", "本文方法"),
@@ -202,6 +295,9 @@ class PlainReport:
     metrics: dict[str, float] = field(default_factory=dict)
     plainness: float = 1.0
     concision: float = 1.0
+    confidence: float = 1.0
+    qualifications: list[dict[str, object]] = field(default_factory=list)
+    ordering: dict[str, object] = field(default_factory=dict)
 
     def summary(self) -> str:
         """给评分 reason 与审计留痕用的一行可读结论。"""
@@ -216,6 +312,9 @@ class PlainReport:
         bits.append(f">40 字句占 {long_ratio:.0%}")
         return "、".join(bits)
 
+    def verdict_labels(self, verdict: str) -> list[str]:
+        return [str(item["text"]) for item in self.qualifications if item["verdict"] == verdict]
+
 
 def sentences(text: str) -> list[str]:
     return [part.strip() for part in _SENT_SPLIT.split(text) if part.strip()]
@@ -225,9 +324,14 @@ _LITERAL_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("boilerplate", BOILERPLATE),
     ("praise", PRAISE),
     ("disclaimer", DISCLAIMER),
+    ("downgrade", DOWNGRADE),
+    ("selfneg", SELFNEG),
     ("hedge", HEDGE),
     ("jargon", JARGON),
 )
+
+#: 判定"这句是不是限定语"的标记组（不含 jargon/pattern：它们不是限定）。
+_QUALIFICATION_GROUPS = ("boilerplate", "praise", "disclaimer", "downgrade", "selfneg", "hedge")
 
 
 def _grouped_literal_hits(text: str) -> dict[str, list[tuple[str, int]]]:
@@ -301,17 +405,137 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
-def plainness(text: str) -> float:
-    """0–1，越高越"直白"。硬命中按句数归一，hedge 只有超出配额才扣。"""
+def referents(sentence: str) -> list[str]:
+    """句内可核对的指称：数字（**不过滤单位数**）、标识符形态的拉丁词、领域名词。
+
+    这里刻意不复用 rules.numeric_tokens——那条规则丢弃单位数以避免溯源假命中，
+    而"仅在 3 个数据集上验证"的关键指称恰恰是单位数 3。目的不同，规则必须分开。
+    """
+    found = [token for token in _REFERENT_NUMBER.findall(sentence) if float(token.replace(",", "")) != 0]
+    found.extend(token for token in _REFERENT_LATIN.findall(sentence) if token not in _LATIN_STOP)
+    found.extend(noun for noun in SCOPE_NOUNS if noun in sentence)
+    return list(dict.fromkeys(found))
+
+
+def _qualification_markers(sentence: str) -> dict[str, int]:
+    hits = _grouped_literal_hits(sentence)
+    markers = {group: sum(count for _, count in hits[group]) for group in _QUALIFICATION_GROUPS}
+    markers["boundary_cue"] = sum(1 for cue in BOUNDARY_CUES if cue in sentence)
+    for _label, pattern in EN_PHRASES["hedge"] + EN_PHRASES["boilerplate"] + EN_PHRASES["praise"]:
+        if re.search(pattern, sentence, flags=re.IGNORECASE):
+            markers["hedge"] += 1
+    return markers
+
+
+def _scope_family(token: str) -> tuple[str, ...]:
+    for family in SCOPE_FAMILIES:
+        if token in family:
+            return family
+    return (token,)
+
+
+def _in_source(token: str, source_norm: str) -> bool:
+    """指称能否在原文定位：数字与标识符逐字匹配，领域名词按同族互认。"""
+    if normalize_text(token) in source_norm:
+        return True
+    return any(normalize_text(member) in source_norm for member in _scope_family(token))
+
+
+def classify_qualification(sentence: str, source_norm: str | None = None) -> str | None:
+    """判定限定语性质：``ungrounded`` 该删、``boundary`` 该留、``unverified`` 无原文时按留处理。
+
+    依据是**有没有可核对的指称**，而不是有没有犹豫词："或许只能被视为探索性证据"
+    不指向任何东西；"仅在 3 个数据集上得到验证"里的 3 与数据集都能回原文核对。
+    """
+    markers = _qualification_markers(sentence)
+    is_qualification = any(markers[group] for group in _QUALIFICATION_GROUPS) or markers["boundary_cue"]
+    if not is_qualification:
+        return None
+    refs = referents(sentence)
+    if not refs:
+        # 零指称：无论有没有原文都无据可依。
+        return "ungrounded"
+    if source_norm is None:
+        # 没有原始材料就无从核对，保守当作研究边界保留。
+        return "unverified"
+    if any(_in_source(token, source_norm) for token in refs):
+        return "boundary"
+    return "ungrounded"
+
+
+def qualifications(text: str, source: str | None = None) -> list[dict[str, object]]:
+    """逐句给出限定语判定，供闸门、留痕与页面展示。"""
+    source_norm = normalize_text(source) if source and source.strip() else None
+    out = []
+    for index, sentence in enumerate(sentences(text)):
+        verdict = classify_qualification(sentence, source_norm)
+        if verdict is None:
+            continue
+        out.append(
+            {
+                "index": index,
+                "verdict": verdict,
+                "text": sentence[:48],
+                "referents": referents(sentence)[:4],
+            }
+        )
+    return out
+
+
+def ordering(text: str) -> dict[str, object]:
+    """主张与限制的先后：主张句=有指称且无 hedge/降级/自我否定标记的限定外句子。"""
+    parts = sentences(text)
+    claim_index = -1
+    limit_index = -1
+    for index, sentence in enumerate(parts):
+        markers = _qualification_markers(sentence)
+        hedged = any(markers[group] for group in ("hedge", "downgrade", "selfneg"))
+        if claim_index < 0 and referents(sentence) and not hedged:
+            claim_index = index
+        if limit_index < 0 and (markers["downgrade"] or markers["selfneg"] or (hedged and not referents(sentence))):
+            limit_index = index
+    return {
+        "claim_first": claim_index < 0 or limit_index < 0 or claim_index <= limit_index,
+        "claim_index": claim_index,
+        "limit_index": limit_index,
+    }
+
+
+def confidence(text: str, source: str | None = None) -> float:
+    """0–1：无据限定与自我否定越密越低，主张后置额外扣分。"""
+    parts = sentences(text)
+    if not parts:
+        return 1.0
+    marks = qualifications(text, source)
+    ungrounded = sum(1 for item in marks if item["verdict"] == "ungrounded")
+    penalty = ungrounded / len(parts)
+    if not ordering(text)["claim_first"]:
+        penalty += CLAIM_LAST_PENALTY
+    return round(_clamp(1.0 - penalty), 3)
+
+
+def plainness(text: str, source: str | None = None) -> float:
+    """0–1，越高越直白。
+
+    硬命中按句数归一；hedge 只有**超出配额**才扣，且被判为研究边界（含未验证）
+    的句子里的 hedge 不计入配额——否则等于要求模型删掉诚实的范围声明。
+    """
     parts = findings(text)
-    sents = max(1, len(sentences(text)))
+    sents = sentences(text)
+    total = max(1, len(sents))
     hard = sum(f.count * GROUP_WEIGHTS.get(f.group, 0.0) for f in parts if f.group in GROUP_WEIGHTS)
     jargon = sum(f.count for f in parts if f.group == "jargon") * 0.4
     patterns = sum(f.count for f in parts if f.group == "pattern") * 0.5
-    hedge_total = sum(f.count for f in parts if f.group == "hedge")
-    allowance = math.ceil(sents * HEDGE_PER_SENTENCE)
+
+    source_norm = normalize_text(source) if source and source.strip() else None
+    hedge_total = 0
+    for sentence in sents:
+        if classify_qualification(sentence, source_norm) in ("boundary", "unverified"):
+            continue
+        hedge_total += sum(_qualification_markers(sentence)[group] for group in ("hedge",))
+    allowance = math.ceil(total * HEDGE_PER_SENTENCE)
     hedge = max(0, hedge_total - allowance) * 0.6
-    penalty = (hard + jargon + patterns + hedge) / sents
+    penalty = (hard + jargon + patterns + hedge) / total
     return round(_clamp(1.0 - penalty / 1.2), 3)
 
 
@@ -327,13 +551,15 @@ def concision(text: str) -> float:
     return round(_clamp(1.0 - length_penalty - long_penalty), 3)
 
 
-def report(text: str) -> PlainReport:
-    found = findings(text)
+def report(text: str, source: str | None = None) -> PlainReport:
     return PlainReport(
-        findings=found,
+        findings=findings(text),
         metrics=metrics(text),
-        plainness=plainness(text),
+        plainness=plainness(text, source),
         concision=concision(text),
+        confidence=confidence(text, source),
+        qualifications=qualifications(text, source),
+        ordering=ordering(text),
     )
 
 
