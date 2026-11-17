@@ -119,6 +119,7 @@ async def optimize(
     timeout_ms: int | None = None,
     request_id: str | None = None,
     audit: AuditLog | None = None,
+    audit_extra: dict[str, Any] | None = None,
 ) -> OptimizeResult:
     """对一次模型输出执行后置优化；任何异常都以“返回原始输出”收口。"""
     base_settings = settings or get_settings()
@@ -158,7 +159,7 @@ async def optimize(
     degraded_reason = ""
     try:
         steps = await asyncio.wait_for(_run_steps(ctx), timeout=timeout_s)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         degraded, degraded_reason = True, f"管线超时（{effective.timeout_ms}ms），回退原始输出"
         ctx.markers.append("timeout")
     except Exception as exc:
@@ -192,27 +193,30 @@ async def optimize(
 
     if pipeline.audit:
         log = audit or AuditLog(effective.audit_path)
-        log.write(
-            {
-                "request_id": identifier,
-                "ts": datetime.now().astimezone().isoformat(timespec="seconds"),
-                "provider": getattr(active_provider, "name", "unknown"),
-                "schema": getattr(model_cls, "__name__", None),
-                "instruction": instruction,
-                "valid": result.valid,
-                "score": result.score,
-                "dimensions": result.dimensions,
-                "repaired": result.repaired,
-                "degraded": result.degraded,
-                "degraded_reason": degraded_reason,
-                "markers": result.markers,
-                "changes": result.changes,
-                "errors": result.errors,
-                "steps": steps,
-                "usage": result.usage,
-                "ms": elapsed_ms,
-                "raw_output": raw_output,
-                "final_output": result.final_output,
-            }
-        )
+        record: dict[str, Any] = {
+            "request_id": identifier,
+            "ts": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "provider": getattr(active_provider, "name", "unknown"),
+            "schema": getattr(model_cls, "__name__", None),
+            "instruction": instruction,
+            "input_text": input_text,
+            "valid": result.valid,
+            "score": result.score,
+            "dimensions": result.dimensions,
+            "repaired": result.repaired,
+            "degraded": result.degraded,
+            "degraded_reason": degraded_reason,
+            "markers": result.markers,
+            "changes": result.changes,
+            "errors": result.errors,
+            "steps": steps,
+            "usage": result.usage,
+            "ms": elapsed_ms,
+            "raw_output": raw_output,
+            "final_output": result.final_output,
+        }
+        # 调用方（如 harness 驱动）可补充来源信息，但不得覆盖核心键。
+        for key, value in (audit_extra or {}).items():
+            record.setdefault(key, value)
+        log.write(record)
     return result

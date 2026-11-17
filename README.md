@@ -2,9 +2,9 @@
 
 **面向学术科研的 Post-hoc AI 输出优化器**
 
-在任意大模型生成完成之后，对输出执行校验、评分、修复、格式化与拟人化重写，在不修改模型、不介入推理过程的前提下，持续提升科研场景输出的结构合规性、内容准确性、事实可溯源性与表达自然度。
+在任意 agent harness（Codex CLI、Claude Code、自研脚手架等）跑完之后，对其最终输出执行校验、评分、修复、格式化与拟人化重写——不改模型、不介入推理，只对输出做二次优化，持续提升科研场景输出的结构合规性、内容准确性、事实可溯源性与表达自然度。
 
-> **项目状态：v0.2 已实现。** 仓库包含设计文档、可执行代码与评估方案，下文“快速开始”“使用指南”即为当前可用用法；mock 模式实测数字见 [§9 效果评估](#9-效果评估)。
+> **项目状态：v0.2 已实现；v0.3 的 harness 驱动为实验面，默认关闭。** 仓库包含设计文档、可执行代码与评估方案，下文“快速开始”“使用指南”即为当前可用用法；mock 模式实测数字见 [§9 效果评估](#9-效果评估)，harness 驱动见 [§7.5](#75-驱动-harness实验面)。
 
 **效果一览**
 
@@ -58,11 +58,12 @@
 
 大模型辅助科研工作时，输出常面临四类问题：结构化字段缺失或类型错误，论文元数据与实验记录无法直接入库；参考文献格式混乱，甚至出现幻觉引用；实验数值偏离原文、无法溯源；以及空泛套话与模板化表述带来的“AI 味”，达不到人类研究者的写作水准。在推理阶段进行约束解码或重采样，需要深度绑定模型与供应商，接入成本高、可迁移性差。
 
-本项目采用 **Post-hoc（后置优化）** 思路：模型照常生成，优化器只在输出完成之后介入。调用方持有原始输出，交由优化器完成校验、评分、修复、格式化与拟人化重写，最终返回可直接使用的结构化结果或自然的学术文本。
+本项目采用 **Post-hoc（后置优化）** 思路：harness 照常驱动模型生成，优化器只在输出完成之后介入。调用方持有原始输出，交由优化器完成校验、评分、修复、格式化与拟人化重写，最终返回可直接使用的结构化结果或自然的学术文本。站点本身即这一思路的套壳形态：既可直接粘贴 harness 的输出，也可由服务端按白名单驱动 harness 跑一次再优化（§7.5）。
 
-这一设计带来三个直接收益：
+这一设计带来四个直接收益：
 
 - **与模型解耦**：同一套优化策略适用于任意支持 OpenAI 兼容协议的服务，包括云端 API 与本地部署模型。
+- **与 harness 解耦**：不绑定具体脚手架的提示词与流程，只约定“给我一段输出”；驱动层按白名单调用外部命令，换 harness 只改配置不改代码。
 - **不损害交互体验**：优化发生在生成结束之后，不参与推理，不影响首 Token 延迟与流式输出本身的体验。
 - **可度量、可回滚**：每次优化均留痕，能够对比优化前后效果；优化器异常时回退原始输出，业务流程不受阻断。
 
@@ -81,11 +82,12 @@
 - **默认 Fail-open**：任一环节异常或超时，均返回原始输出并记录降级原因，不阻断调用方业务。
 - **全链路审计**：以 JSONL 记录原始输出、最终输出、各步骤得分、耗时与变更原因，可直接用于回归与数据分析。
 - **离线可验证**：内置 mock provider，无网络、无密钥即可跑通完整管线、测试与评估流程。
+- **可选的 harness 驱动**：默认关闭的实验面（`POST /v1/run`）能自动发现本机已安装的内置 profile CLI、或经 OpenAI 兼容 API 直连，取其最终回答进入同一条管线；请求体只能提供任务文本与 profile 名。
 
 ## 3. 设计原则
 
-1. **只做后处理**：不介入模型推理，不改变生成过程，不影响首 Token 延迟。
-2. **接口稳定优先**：对外只暴露 `optimize()` 与 `POST /v1/optimize` 两个入口，内部步骤可替换。
+1. **只做后处理**：`optimize()` 不介入模型推理，不改变生成过程，不影响首 Token 延迟。harness 驱动位于该契约**外侧**，是默认关闭的可选调用方实现，不参与五步管线。
+2. **接口稳定优先**：对外契约只有 `optimize()` 与 `POST /v1/optimize` 两个入口，内部步骤可替换；另附一个本地查看页（`GET /`）与只读历史端点，属调试工具，不构成新的稳定接口。
 3. **失败不放大**：任何优化步骤的异常都以“返回原始输出”收口，禁止因优化器故障导致业务失败。
 4. **结论可追溯**：每个得分都必须能说明来源，每个变更都必须有对应的审计记录。
 5. **默认值即最佳实践**：开箱配置即为经过评估的安全取值，调优属于可选行为。
@@ -93,12 +95,14 @@
 ## 4. 系统架构
 
 ```text
-raw_output ──► schema ──► rules ──► repair ──► format ──► humanize ──► final_output
-                 │          │         │          │           │
-                 └──────────┴─────────┴──────────┴───────────┴──► 审计（JSONL）+ 采纳判定
+[可选 · 默认关闭]  task ──► harness 驱动（白名单子进程）──► raw_output
+                                                                    │
+post-hoc 契约 ──► schema ──► rules ──► repair ──► format ──► humanize ──► final_output
+                    │          │         │          │           │
+                    └──────────┴─────────┴──────────┴───────────┴──► 审计（JSONL）+ 采纳判定
 ```
 
-优化器不主动调用主模型：原始输出由调用方提供。优化器内部仅在触发修复或开启拟人化重写时调用独立模型，因而不会与业务方的调用链产生耦合，也便于在同一请求内复用已有的模型响应。
+优化器不主动调用生成模型：默认形态下原始输出由调用方提供。开启 harness 驱动时，由驱动层执行一次白名单命令取回其最终回答，再交给同一条 post-hoc 管线——这一步在契约外侧，且命令、参数、工作目录与环境变量只能来自服务端配置，请求体只提供任务文本。优化器内部仅在触发修复或开启拟人化重写时调用独立模型，因而不会与业务方的调用链产生耦合，也便于在同一请求内复用已有的模型响应。
 
 ## 5. 优化管线
 
@@ -145,7 +149,7 @@ class BaseStep:
 
 ### 6.1 环境要求
 
-- Python 3.10 及以上
+- Python 3.11 及以上
 - pip 23 及以上
 - 可选：任一支持 OpenAI 兼容协议的模型服务（不配置时使用 mock provider）
 
@@ -198,6 +202,8 @@ mock 模式下，第二条命令应稳定返回 `valid` 与 `score` 字段，全
 > curl -s --data-binary @data/request.example.json -H "content-type: application/json; charset=utf-8" \
 >   -X POST localhost:8000/v1/optimize
 > ```
+
+起服后在浏览器打开 `http://localhost:8000/` 即可使用可视化页面，见 [§7.4](#74-可视化页面)。
 
 ### 6.4 接入真实模型
 
@@ -313,6 +319,74 @@ class CcfVenueStep(BaseStep):
 
 在 `config/pipeline.yaml` 的 `steps` 列表中登记后立即生效；若校验不通过，将按配置触发修复或直接返回。
 
+### 7.4 可视化页面
+
+起服后访问 `/`，三栏布局：左为历史会话，中为输入与结果流，右为运行环境与优化前后对照。
+
+| 区域 | 内容 | 数据来源 |
+| ------ | ------ | ------ |
+| 历史会话 | schema、状态、得分、耗时、变更标记；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
+| 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关与 `timeout_ms` | `GET /v1/config` |
+| 结果流 | 结论行、步骤时间线（逐步耗时与原因）、三维评分条、变更与标记、错误 | `POST /v1/optimize` 与该次的审计记录 |
+| 运行环境 | provider、阈值、超时、fail_open、引用风格、审计条数、健康灯 | `GET /v1/config`、`GET /healthz` |
+| 前后对照 | 行级 diff，增删分色 | 审计记录的 `raw_output` 与 `final_output` |
+
+局限与注意点：
+
+- 页面是**本地调试工具，无鉴权**，不要暴露到不可信网络。
+- 历史只读 `AUDIT_PATH` 尾部（单次最多 200 条）；多进程共用同一审计文件时，列表会混入其它来源的记录。
+- `request_id` 由进程内计数器生成，多进程会产生重号，因此页面以审计文件的**行号**（`line_no`）作为选中依据。
+- 步骤开关默认取 `pipeline.yaml` 的取值，提交时显式发送布尔值，不再沿用“未设置即跟随配置”的三态语义。
+- 模型输出与审计内容一律按纯文本渲染，测试用例断言页面不存在 `innerHTML` 等注入写法。
+- diff 在前端计算，超过 400 行自动降级为只显示优化后结果。
+- 布局在桌面宽度下为三栏，窄于 1040px 自动折叠为单列；左上按钮可收起历史栏。
+
+### 7.5 驱动 harness（实验面）
+
+前四节都不要求本服务具备生成能力：`raw_output` 由调用方给出。本节是唯一例外——服务端可以拉起一个上游 harness 跑一次任务，取回它的最终回答，再走同一条五步管线。
+
+三条来源，按可信度从高到低：
+
+| 来源 | 说明 |
+| ------ | ------ |
+| 内置 profile 自动发现 | 扫描 PATH 目录、npm 全局 `node_modules` 的 `package.json` bin 与平台子包，解析出可执行文件；**argv 恒为 `app/harness/profiles.py` 里的常量**。登记表：`codex`（可驱动）、`opencode`（可发现、暂不可驱动） |
+| OpenAI 兼容 API 直连 | `OPENAI_API_KEY` 非空即自动注册 `openai-api` profile，不经子进程；系统提示词也是常量 |
+| 显式命令 | `HARNESS_COMMAND` + `HARNESS_ARGS`，v0.3 起的支持方式，参数由操作者写在 `.env` |
+
+```bash
+curl -s -X POST localhost:8000/v1/run -H "content-type: application/json" \
+  -d '{"task":"总结这篇论文的方法与结论","schema":"paper","harness":"codex"}'
+curl -s localhost:8000/v1/harnesses            # 只扫描，不执行任何程序
+curl -s "localhost:8000/v1/harnesses?probe=true"  # 额外跑 --version / login status 探测
+```
+
+页面顶部的「驱动 harness」区即这两个接口：profile 下拉来自服务端实际装配结果，检测表默认只做文件系统扫描，按下「带探测重新检测」才会执行探测。
+
+**安全边界**（这层能力会启动子进程或发出外部请求，因此约束是硬的）：
+
+| 约束 | 具体做法 |
+| ------ | ------ |
+| 参数来源 | 请求体只接受 `task` 文本与 **profile 名**（等价于用 `schema` 选内置模型）；传 `command`/`args`/`cwd`/`model`/`base_url` 一律无效，有测试固定这一行为 |
+| 配置来源 | 命令、参数、工作目录、环境变量只来自 `.env`；`config/pipeline.yaml` 不接受它们（该文件入库，命令入库等于检出即可执行） |
+| 白名单 | 显式模式下 `HARNESS_COMMAND` 必须是绝对路径、真实存在且在 `HARNESS_ALLOWED_COMMANDS` 中；按 basename 放行等于允许 `python -c`，不做妥协 |
+| 发现器约束 | 只认内置 profile 声明的包名与入口；候选解析后必须仍在该包目录内（拒绝越界软链）；Windows 上必须是带 `MZ` 头的真实 PE——npm 的 `codex.cmd` 与未跑 postinstall 留下的 `opencode.exe` 脚本桩都会被拒 |
+| 探测副作用 | 扫描与启动阶段**不执行任何被发现的程序**；只有 `probe=true` 才执行，参数取 profile 常量、stdin 关闭、受 `HARNESS_PROBE_TIMEOUT_MS` 约束，失败一律降级为"已检测未验证" |
+| 输入传递 | `task` 经 **stdin**（或 API 的 user 消息）传入，不进 argv |
+| 子进程环境 | 重建最小环境，不继承 `os.environ`；`OPENAI_API_KEY` 等密钥默认不进子进程 |
+| 工作目录 | 发现式 profile 未配 `HARNESS_CWD` 时自动使用独立临时空目录，不让外部 agent 继承服务进程 cwd（本仓库） |
+| 资源约束 | `HARNESS_TIMEOUT_MS` 超时即杀并收割进程；`HARNESS_MAX_OUTPUT_BYTES` 之外标记截断；`HARNESS_MAX_CONCURRENCY` 超限返回 429 |
+| 默认值 | `HARNESS_ENABLED=false`；未启用时 `POST /v1/run` 恒返回 503，指引调用方使用 `/v1/optimize` |
+
+并发额度按 profile 独立计数：多 profile 装配时，同时运行的子进程数上限为 `profile 数 × HARNESS_MAX_CONCURRENCY`。
+
+**状态码语义**：422 未知 schema 或未知 profile 名、503 未启用或命令不可用、429 并发超限、504 超时、502 harness 非零退出或 API 调用失败。harness 失败时**不会**进入优化管线，也不会写审计记录。
+
+**与 post-hoc 契约的关系**：驱动层等价于"调用方"，只是调用方从业务代码换成了页面按钮。`optimize()` 的输入输出契约、评分口径与审计结构均不因它改变；关闭驱动时本节省略即可，其余章节自洽。
+
+**已实测与未实测**：发现器在本机真实环境验证过——能解析出 `node.exe + codex.js` 的组合入口（`which` 只会命中不能执行的 `codex.cmd`），能跳过 `opencode` 包声明的 479 字节脚本桩并定位到平台子包里的真实 PE，探测得到 `codex-cli 0.148.0` 与 `Logged in using ChatGPT`。**未验证**：`openai-api` 的成功返回（需要真实密钥）、`opencode` 的端到端驱动（非交互契约未确认，故登记为不可驱动）。
+
+> 启用 codex 前请先确认已安装的 CLI 版本支持账号当前使用的模型。版本不匹配时 harness 会以非零退出，本层返回 502 并透传其 stderr，**不会**进入优化管线、也不写审计记录。
+
 ## 8. 配置参考
 
 ### 8.1 环境变量
@@ -328,8 +402,21 @@ class CcfVenueStep(BaseStep):
 | `OPTIMIZE_TIMEOUT_MS` | `8000` | 整条管线的时间预算 |
 | `OPTIMIZE_FAIL_OPEN` | `true` | 异常时是否回退原始输出 |
 | `AUDIT_PATH` | `data/audit.jsonl` | 审计文件路径 |
+| `HARNESS_ENABLED` | `false` | harness 驱动总开关，默认关闭 |
+| `HARNESS_PROVIDERS` | 空 | 逗号分隔的 profile 白名单（如 `codex,openai-api`），空表示全部可用 |
+| `HARNESS_PROFILE` | 空 | 默认 profile，空表示取第一个可用的 |
+| `HARNESS_DETECT` | `true` | 是否扫描本机已安装的内置 profile CLI |
+| `HARNESS_PROBE_TIMEOUT_MS` | `5000` | 页面点「带探测重新检测」时单次探测的超时 |
+| `HARNESS_COMMAND` | 空 | 显式模式的可执行文件绝对路径，须出现在白名单中 |
+| `HARNESS_ALLOWED_COMMANDS` | `[]` | 允许执行的可执行文件绝对路径，JSON 数组 |
+| `HARNESS_ARGS` | `[]` | 固定参数，JSON 数组；`{output_file}` 会替换为本次临时输出文件路径 |
+| `HARNESS_CWD` | 空 | 子进程工作目录，建议指向空的临时目录 |
+| `HARNESS_TIMEOUT_MS` | `120000` | 单次 harness 调用超时，与 `OPTIMIZE_TIMEOUT_MS` 相互独立 |
+| `HARNESS_MAX_OUTPUT_BYTES` | `262144` | 取回内容的上限，超出标记截断 |
+| `HARNESS_MAX_CONCURRENCY` | `1` | 同时在跑的 harness 子进程数，超限返回 429 |
+| `HARNESS_ENV_ALLOW` | 空 | 逗号分隔的额外环境变量名；加入即真的传入子进程，密钥类变量不要写 |
 
-> 变量名即表中形式（大小写不敏感）。注意 `OPTIMIZE_*` 属于管线阈值，会被 `config/pipeline.yaml` 中的同名顶层键覆盖——例如仓库自带的 `fail_open: true` 优先于 `.env` 里的 `OPTIMIZE_FAIL_OPEN=false`，需要严格模式时请同时改 `pipeline.yaml`。
+> 变量名即表中形式（大小写不敏感）。注意 `OPTIMIZE_*` 属于管线阈值，会被 `config/pipeline.yaml` 中的同名顶层键覆盖——例如仓库自带的 `fail_open: true` 优先于 `.env` 里的 `OPTIMIZE_FAIL_OPEN=false`，需要严格模式时请同时改 `pipeline.yaml`。`HARNESS_*` 不在此列：命令类配置只能来自环境变量，`pipeline.yaml` 不接受它们（见 §7.5）。
 
 ### 8.2 管线编排
 
@@ -428,6 +515,7 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 - 规则评分关注结构、格式与事实溯源，对语义层面的错误不敏感；拟人化的自然度依赖重写模型能力，可通过可选的 LLM 评分维度或人工抽检评估。
 - 拟人化重写仅保证“事实不变”，不保证学术观点正确；学术结论的正确性仍由作者负责。
 - 当前版本仅承诺 OpenAI 兼容协议；访问 Anthropic、Gemini 等专有协议需实现对应的 Provider 适配器。
+- harness 驱动（§7.5）是仅本机的实验面：无鉴权、不流式、只取最终回答，不解析工具调用轨迹。可驱动的 CLI 由内置 profile 表穷举——**已检测到但未登记的 CLI 只会显示"暂不支持驱动"，不会得到执行入口**；新增一个 CLI 需要改代码。Windows 下不能直接 exec npm 的 `codex.cmd`/`codex.ps1` 包装，发现器因此解析 `node.exe + codex.js`；超时只保证回收直接子进程，**其派生的孙进程不保证被清理**；stdout 若被截断，取回内容可能不是合法 JSON。`openai-api` 形态需要真实密钥才能端到端验证。
 - 修复能力受修复模型本身能力约束，闸门仅能保证“不比原来更差”，不能保证“一定更好”。
 - 性能数据会随修复模型、网络状况与输出长度变化，评估结论应结合具体环境复测。
 
@@ -440,6 +528,14 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 │   ├── settings.py              # 配置加载：.env 与 pipeline.yaml（含优先级合并）
 │   ├── schemas.py               # 学术场景 Pydantic 模型：paper / reference / experiment
 │   ├── textio.py                # 围栏剥离、JSON 抽取、空白归一、提示词加载
+│   ├── harness/                 # 实验面：发现并驱动上游 harness
+│   │   ├── base.py              # HarnessRun 与异常族
+│   │   ├── profiles.py          # 内置 profile 常量表（argv 只能来自这里）
+│   │   ├── detect.py            # 纯文件系统发现 + 按需探测（PE 校验、桩识别）
+│   │   ├── command.py           # CommandHarness：白名单、stdin 传参、超时回收
+│   │   └── api.py               # ApiHarness：组合 OpenAI 兼容 provider
+│   ├── viewer.py                # 本地查看页：页面挂载、环境信息、只读审计尾部
+│   ├── web/                     # 页面资源：index.html / styles.css / app.js（零构建）
 │   ├── audit.py                 # JSONL 审计
 │   ├── optimizer/
 │   │   ├── __init__.py          # optimize() 对外入口
@@ -488,16 +584,17 @@ pytest --cov=app --cov-report=term-missing
 - 拟人化单测：以 mock 重写结果断言数值、引用与关键字段在重写前后不变。
 - 回归测试：以金标集的 `final_output` 作为基线快照（`tests/golden_baseline.json`，`OPTIMIZE_UPDATE_GOLDEN=1 pytest` 可重写）。
 
-v0.2 实测：178 项用例通过，`app/` 语句覆盖率 95%；除 `tests/test_providers.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。
+v0.3 实测：259 项用例通过，`app/` 行与分支综合覆盖率 91.06%（CI 门槛 80%）；除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
 
 ## 14. 版本规划
 
 | 版本 | 范围 | 状态 |
 | ------ | ------ | ------ |
 | v0.2 | 核心管线（含拟人化重写）、学术场景 Schema、OpenAI 兼容 Provider、审计与评估 | 已交付 |
-| v0.3 | 新增 Anthropic、Gemini、OpenRouter 适配器 | 规划中 |
-| v0.4 | 可选 LLM 评分维度（含自然度）、多候选输出重排 | 规划中 |
-| v0.5 | 基于审计数据的阈值调优与漂移检测 | 规划中 |
+| v0.3 | harness 驱动（白名单子进程，默认关闭的实验面）、本地查看页、`/v1/audits` 只读历史 | 已交付 |
+| v0.4 | 新增 Anthropic、Gemini、OpenRouter 适配器 | 规划中 |
+| v0.5 | 可选 LLM 评分维度（含自然度）、多候选输出重排 | 规划中 |
+| v0.6 | 基于审计数据的阈值调优与漂移检测 | 规划中 |
 | v1.0 | 持久化存储、监控接入与可视化面板 | 规划中 |
 
 ## 15. 贡献指南

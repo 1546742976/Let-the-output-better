@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Let-the-output-better · 输出优化台</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <aside class="rail rail-left" id="history-rail" aria-label="历史会话">
+        <div class="rail-head">
+          <button type="button" class="icon-btn" id="toggle-history" title="折叠历史列表" aria-expanded="true">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h7M2 12.5h12" /></svg>
+          </button>
+          <span class="rail-title">历史会话</span>
+        </div>
+        <button type="button" class="primary-block" id="new-run">新建优化</button>
+        <div class="history-list" id="history-list"></div>
+        <div class="rail-foot" id="history-foot"></div>
+      </aside>
+
+      <main class="workspace">
+        <header class="work-head">
+          <div class="brand">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span class="brand-name">Post-hoc 输出优化器</span>
+          </div>
+          <div class="work-head-note">模型生成结束后再校验、评分、修复、格式化与重写</div>
+        </header>
+
+        <section class="panel panel-harness" id="harness-panel" aria-label="驱动 harness">
+          <div class="panel-head">
+            <h2>驱动 harness <span class="badge">实验面</span></h2>
+            <span class="panel-hint" id="harness-hint"></span>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">harness profile（只能选内置项，参数由服务端常量决定）</span>
+              <select id="field-harness"></select>
+            </label>
+            <div class="field">
+              <span class="field-label">本机检测结果（默认不执行任何被发现的程序）</span>
+              <div class="detected" id="harness-detected"></div>
+            </div>
+          </div>
+          <div class="prov-note" id="harness-notes"></div>
+          <label class="field">
+            <span class="field-label">task · 交给 harness 的任务（经 stdin 或 API 传入，不进 argv）</span>
+            <textarea id="field-task" rows="3" spellcheck="false" placeholder="例如：总结这篇论文的方法与结论"></textarea>
+          </label>
+          <div class="submit-row">
+            <button type="button" class="primary" id="harness-run-btn">运行 harness + 二次优化</button>
+            <button type="button" class="ghost" id="harness-detect-btn">带探测重新检测</button>
+            <span class="status-line" id="harness-status"></span>
+          </div>
+        </section>
+
+        <section class="panel" aria-label="输入">
+          <div class="panel-head">
+            <h2>输入</h2>
+            <span class="panel-hint">raw_output 为 harness 或模型已经产出的原文</span>
+          </div>
+          <form class="form" id="optimize-form">
+            <div class="field-row">
+              <label class="field field-sm">
+                <span class="field-label">Schema</span>
+                <select id="field-schema" name="schema"></select>
+              </label>
+              <label class="field">
+                <span class="field-label">instruction · 任务说明</span>
+                <input id="field-instruction" name="instruction" type="text" autocomplete="off" placeholder="抽取论文元数据，参考文献按 GB/T 7714 规范" />
+              </label>
+            </div>
+            <label class="field">
+              <span class="field-label">input_text · 原始材料（事实溯源依据，留空则不计一致性分）</span>
+              <textarea id="field-input-text" name="input_text" rows="3" spellcheck="false"></textarea>
+            </label>
+            <label class="field">
+              <span class="field-label">raw_output · 模型原始输出</span>
+              <textarea id="field-raw" name="raw_output" rows="9" spellcheck="false" placeholder="把模型输出粘贴到这里，支持 Markdown 围栏与客套话前后缀"></textarea>
+            </label>
+
+            <div class="options" id="options" role="group" aria-label="步骤开关"></div>
+
+            <div class="submit-row">
+              <button type="submit" class="primary" id="run-btn">运行优化</button>
+              <span class="status-line" id="form-status"></span>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" id="result-panel" hidden aria-label="优化结果">
+          <div class="panel-head">
+            <h2>结果</h2>
+            <span class="panel-hint" id="result-id"></span>
+          </div>
+          <div class="verdict" id="verdict"></div>
+          <div class="sub-head">步骤时间线</div>
+          <div class="steps" id="steps"></div>
+          <div class="sub-head">评分维度</div>
+          <div class="dimensions" id="dimensions"></div>
+          <div class="sub-head">变更与标记</div>
+          <div class="tags" id="tags"></div>
+          <div class="errors" id="errors"></div>
+        </section>
+      </main>
+
+      <aside class="rail rail-right" aria-label="环境与对照">
+        <section class="panel panel-flush">
+          <div class="panel-head">
+            <h2>运行环境</h2>
+            <span class="dot" id="health-dot" title="健康检查"></span>
+          </div>
+          <dl class="env" id="env"></dl>
+        </section>
+        <section class="panel panel-grow">
+          <div class="panel-head">
+            <h2>优化前 → 优化后</h2>
+            <span class="panel-hint" id="diff-mode"></span>
+          </div>
+          <div class="diff" id="diff"></div>
+        </section>
+      </aside>
+    </div>
+
+    <template id="tpl-history-item">
+      <button type="button" class="history-item">
+        <span class="hi-top">
+          <span class="dot" data-role="dot"></span>
+          <span class="hi-schema" data-role="schema"></span>
+          <span class="hi-score" data-role="score"></span>
+        </span>
+        <span class="hi-preview" data-role="preview"></span>
+        <span class="hi-meta" data-role="meta"></span>
+      </button>
+    </template>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
