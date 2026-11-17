@@ -30,10 +30,9 @@ STRUCTURED_INPUT = (
 STRUCTURED_INSTRUCTION = "抽取论文标题、作者、年份、关键词与参考文献，参考文献按 GB/T 7714 规范"
 
 SIMPLIFY_BEFORE = (
-    "值得注意的是，实验结果充分表明，本文方法在 3 个公开数据集上取得了 12.5% 的 Top-1 准确率提升，"
-    "具有显著的性能优势和广阔的应用前景。"
+    "值得注意的是，这或许只能被视为探索性证据；本结论仅在 3 个数据集上得到验证，Top-1 准确率提升 12.5%；需谨慎解读。"
 )
-SIMPLIFY_INPUT = "本文方法在 3 个公开数据集上的 Top-1 准确率提升 12.5%，优于对比方法。"
+SIMPLIFY_INPUT = "该方法在 3 个公开数据集上得到验证，Top-1 准确率提升 12.5%。"
 
 
 def heading(text: str) -> None:
@@ -62,7 +61,7 @@ async def main() -> int:
     if settings.provider != "mock":
         print("提示：当前不是 mock provider，下面会真实调用模型服务。")
 
-    heading("场景一：散文通俗化——把过度防御与晦涩改成简短直白（simplify 默认开启）")
+    heading("场景一：删无据限定、留研究边界（simplify 默认开启）")
     print("改写前：")
     print(SIMPLIFY_BEFORE)
     simplified = await optimize(
@@ -76,7 +75,11 @@ async def main() -> int:
     )
     print("改写后：")
     print(simplified.final_output)
-    print(f"valid={simplified.valid} score={simplified.score} 通俗度={simplified.dimensions.get('plainness')}")
+    dims = simplified.dimensions
+    print(
+        f"valid={simplified.valid} score={simplified.score} "
+        f"通俗度={dims.get('plainness')} 自信度={dims.get('confidence')} 简洁度={dims.get('concision')}"
+    )
     show_steps(simplified)
     if simplified.markers:
         print("标记：", ", ".join(simplified.markers))

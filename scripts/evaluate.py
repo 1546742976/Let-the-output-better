@@ -29,6 +29,8 @@ from app.audit import AuditLog  # noqa: E402
 from app.optimizer import optimize  # noqa: E402
 from app.optimizer.steps.references import is_compliant  # noqa: E402
 from app.optimizer.steps.rules import normalize_text, numeric_tokens  # noqa: E402
+from app.optimizer.steps.simplify import check_boundaries  # noqa: E402
+from app.plain import qualifications  # noqa: E402
 from app.providers import build_provider  # noqa: E402
 from app.schemas import resolve_schema  # noqa: E402
 from app.settings import PipelineConfig, Settings, load_pipeline_config  # noqa: E402
@@ -90,6 +92,26 @@ def facts_preserved(sample: dict[str, Any], final: Any) -> tuple[bool, list[str]
         if token.replace(".", "").replace(",", "") not in haystack:
             missing.append(token)
     return not missing, missing
+
+
+def defensive_writing_stats(sample: dict[str, Any], final: Any) -> dict[str, int | bool]:
+    """研究边界是否整体保住、无据限定清掉几条。
+
+    边界判定直接调用采纳闸门的 `check_boundaries`：评估口径与执行口径必须是同一份逻辑，
+    否则报告里的"误删 0%"只是在度量另一套规则。
+    """
+    before = str(sample.get("raw_output", ""))
+    after = final if isinstance(final, str) else json.dumps(final, ensure_ascii=False)
+    source = sample.get("input_text") or None
+    items = qualifications(before, source)
+    ungrounded = [str(item["text"]) for item in items if item["verdict"] == "ungrounded"]
+    haystack = normalize_text(after)
+    return {
+        "boundary_total": sum(1 for item in items if item["verdict"] in ("boundary", "unverified")),
+        "boundary_kept": check_boundaries(before, after, source) is None,
+        "ungrounded_total": len(ungrounded),
+        "ungrounded_removed": sum(1 for text in ungrounded if normalize_text(text) not in haystack),
+    }
 
 
 def reference_compliance(final: Any, style: str) -> tuple[int, int]:
@@ -190,6 +212,7 @@ async def evaluate(args: argparse.Namespace) -> int:
             after_score, after_dims = await rescore(settings, provider, sample, str(result.final_output))
         fields_ok, field_problems = fields_match(result.final_output, sample.get("expect") or {})
         facts_ok, missing_numbers = facts_preserved(sample, result.final_output)
+        defensive = defensive_writing_stats(sample, result.final_output)
         ref_hits, ref_total = reference_compliance(result.final_output, style)
         expect_valid = (sample.get("expect") or {}).get("valid")
         rows.append(
@@ -208,6 +231,7 @@ async def evaluate(args: argparse.Namespace) -> int:
                 "field_problems": "; ".join(field_problems),
                 "facts_ok": facts_ok,
                 "missing_numbers": ";".join(missing_numbers),
+                **defensive,
                 "reference_hits": ref_hits,
                 "reference_total": ref_total,
                 "repaired": result.repaired,
@@ -251,6 +275,13 @@ def metric_table(rows: list[dict[str, Any]], latency_budget_ms: int) -> list[tup
     p95_norepair = percentile([r["ms"] for r in rows if not r["repaired"]], 0.95)
     degraded_rate = sum(1 for r in rows if r["degraded"]) / total
     expect_rate = sum(1 for r in rows if r["expect_matched"]) / total
+    with_boundary = [r for r in rows if r["boundary_total"]]
+    boundary_loss = (
+        sum(1 for r in with_boundary if not r["boundary_kept"]) / len(with_boundary) if with_boundary else 0.0
+    )
+    ungrounded_total = sum(r["ungrounded_total"] for r in rows)
+    ungrounded_gone = sum(r["ungrounded_removed"] for r in rows)
+    ungrounded_rate = ungrounded_gone / ungrounded_total if ungrounded_total else 1.0
 
     return [
         (
@@ -274,6 +305,18 @@ def metric_table(rows: list[dict[str, Any]], latency_budget_ms: int) -> list[tup
             f"{plain_mean_after:.3f}（较优化前 {plain_delta:+.3f}）",
             "均值 ≥ 0.8",
             plain_mean_after >= 0.8,
+        ),
+        (
+            "误删研究边界比例",
+            f"{boundary_loss:.1%}（含真实边界的样本 {len(with_boundary)} 条）",
+            "0%",
+            boundary_loss == 0.0,
+        ),
+        (
+            "无据限定清除率",
+            f"{ungrounded_rate:.1%}（{ungrounded_gone}/{ungrounded_total} 句）",
+            "≥ 90%",
+            ungrounded_rate >= 0.90,
         ),
         (
             "修复成功率",
@@ -358,6 +401,12 @@ def write_report(args: argparse.Namespace, rows: list[dict[str, Any]], style: st
             "- 平均分变化使用同一规则口径：类型归一与别名映射在 `schema` 步骤内完成，"
             "原始输出一旦可解析即已享受同等归一，因此得分增益有限；"
             "本项目的收益主要体现在 Schema 合规率与引用格式合规率上。"
+        )
+    if "无据限定清除率" in unmet:
+        lines.append(
+            "- 未清除的那句是**纯文字性真实边界**（“受制于算力，其有效性有待进一步验证”）：句中既无数字也无领域名词，"
+            "按“零指称即无据”被判为 ungrounded。这是指称启发式的已知局限而非漏删套话——"
+            "要把它当边界保护，得让泛词参与匹配，代价是太极话也会一起被保护。"
         )
     if "修复成功率" in unmet:
         lines.append(
