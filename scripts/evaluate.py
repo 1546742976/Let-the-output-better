@@ -27,11 +27,18 @@ from pydantic import ValidationError  # noqa: E402
 
 from app.audit import AuditLog  # noqa: E402
 from app.optimizer import optimize  # noqa: E402
+from app.optimizer.context import StepContext  # noqa: E402
 from app.optimizer.steps.references import is_compliant  # noqa: E402
-from app.optimizer.steps.rules import normalize_text, numeric_tokens  # noqa: E402
+from app.optimizer.steps.rules import RulesStep, normalize_text, numeric_tokens  # noqa: E402
 from app.providers import build_provider  # noqa: E402
 from app.schemas import resolve_schema  # noqa: E402
-from app.settings import PipelineConfig, Settings, load_pipeline_config  # noqa: E402
+from app.settings import (  # noqa: E402
+    DEFAULT_WEIGHTS,
+    PipelineConfig,
+    Settings,
+    StepConfig,
+    load_pipeline_config,
+)
 
 ALL_STEPS = ("schema", "rules", "repair", "format", "humanize")
 
@@ -122,6 +129,37 @@ async def rescore(settings: Settings, provider, sample: dict[str, Any], text: st
     return result.score
 
 
+async def score_raw_baseline(settings: Settings, sample: dict[str, Any], raw_output: str, style: str) -> float | None:
+    """优化前得分：与 ``strict_validate`` 同一判据，原始结构直接进 ``rules`` 计分。
+
+    ``rescore()`` 会先跑 SchemaStep，别名映射与类型归一已经把优化器的收益算进了
+    「优化前」，同一评分口径下分差恒等于 0（实测 +0.005）。这里有意跳过 SchemaStep：
+    JSON 解析不了就按无结构计分，解析得出但字段名/类型不合规则按原始形态计分，
+    与「下游程序不经任何处理能否直接消费」这条判据对齐。
+    """
+    model_cls = resolve_schema(sample.get("schema") or "paper")
+    parsed: dict[str, Any] | None = None
+    try:
+        data = json.loads(raw_output)
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        parsed = data
+    ctx = StepContext(
+        raw_output=raw_output,
+        settings=settings,
+        config=PipelineConfig(audit=False),
+        schema=model_cls,
+        instruction=sample.get("instruction", ""),
+        input_text=sample.get("input_text", ""),
+        parsed=parsed,
+        text=None if parsed is not None else raw_output,
+    )
+    step = RulesStep(StepConfig(name="rules", weights=dict(DEFAULT_WEIGHTS), reference_style=style), settings)
+    await step.run(ctx)
+    return ctx.score
+
+
 def load_dataset(path: Path) -> list[dict[str, Any]]:
     samples = []
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
@@ -163,7 +201,7 @@ async def evaluate(args: argparse.Namespace) -> int:
     for sample in samples:
         schema_name = sample.get("schema") or "paper"
         before_strict = strict_validate(sample["raw_output"], schema_name)
-        before_score = await rescore(settings, provider, sample, sample["raw_output"])
+        before_score = await score_raw_baseline(settings, sample, sample["raw_output"], style)
         result = await optimize(
             sample["raw_output"],
             schema=schema_name,
@@ -284,6 +322,7 @@ def write_report(args: argparse.Namespace, rows: list[dict[str, Any]], style: st
         + ("（--live：已实时生成 raw_output）" if args.live else "（未调用任何模型，结果可复现）"),
         f"- 引用目标风格：`{style}`",
         "- 优化前判据：对 `raw_output` 直接 `json.loads` + 严格类型校验（不剥围栏、不做类型归一）",
+        "- 优化前得分：同一判据下把原始结构直接交 `rules` 计分，不经 SchemaStep，与上行口径一致",
         "",
         "## 指标",
         "",

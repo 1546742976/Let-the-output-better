@@ -461,7 +461,7 @@ audit: true
 {"id":"g001","instruction":"抽取论文元数据并规范参考文献","input_text":"《基于深度学习的图像分类方法研究》，张三、李四，CVPR 2023。关键词：深度学习；图像分类。","raw_output":"{...}","expect":{"valid":true,"fields":{"year":2023,"authors":["张三","李四"]}}}
 ```
 
-金标集中预存 `raw_output`，因此评估过程**不调用任何模型**，结果完全可复现；追加 `--live` 参数才会实时调用模型生成。
+金标集中预存 `raw_output`，因此评估过程**不调用任何模型**，结果完全可复现；追加 `--live` 参数才会实时调用模型生成。34 条样本按三类 Schema 分层，成对覆盖「应判失败」与「应修复」两侧：围栏与客套话前后缀、别名键（`paper_title`/`author`/`date`/`conference`/`citations`/`measure`）、全角标点与中文单位、空字段与多余字段、越界年份、无法定位的数值与幻觉引用、JSON 数组与纯文本引用等非常规形态。
 
 ```bash
 python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out data/reports/mock.md
@@ -482,25 +482,24 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 
 #### mock 模式实测结果
 
-`python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out data/reports/mock.md`（12 条样本，未调用任何模型，结果与运行环境无关）：
+`python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out data/reports/mock.md`（34 条样本，未调用任何模型，结果与运行环境无关）：
 
 | 指标 | 目标 | 实测 | 达标 |
 | ------ | ------ | ------ | ------ |
-| Schema 合规率 | 提升 20pp 以上 | 41.7% → 83.3%（+41.7pp） | 是 |
-| 关键字段准确率 | 不低于 90% | 100%（10 条含断言） | 是 |
-| 引用格式合规率 | 不低于 95% | 100%（3/3） | 是 |
-| 事实保持率 | 100% | 100%（5 条变更样本） | 是 |
-| 平均分变化 | 提升 0.1 以上 | +0.005 | 否 |
-| 修复成功率 | 不低于 50% | 33.3%（1/3） | 否 |
-| 额外延迟 P95 | 不修复 300ms 内 | 0ms | 是 |
+| Schema 合规率 | 提升 20pp 以上 | 32.4% → 85.3%（+52.9pp） | 是 |
+| 关键字段准确率 | 不低于 90% | 100%（29 条含断言） | 是 |
+| 引用格式合规率 | 不低于 95% | 100%（8/8） | 是 |
+| 事实保持率 | 100% | 100%（18 条变更样本） | 是 |
+| 平均分变化 | 提升 0.1 以上 | +0.289 | 是 |
+| 修复成功率 | 不低于 50% | 37.5%（3/8） | 否 |
+| 额外延迟 P95 | 不修复 300ms 内 | 1ms | 是 |
 | Fail-open 率 | 低于 1% | 0.0% | 是 |
 
-两项未达标均为口径所致，已在报告中注明：
+唯一未达标的一行受限于度量对象，而非管线本身：
 
-- **平均分变化**：优化前的“原始输出”一旦可解析，即已享受与优化后相同的 Schema 类型归一，因此同一评分口径下分差有限；收益体现在合规率与引用格式，而非分数本身。
-- **修复成功率**：mock provider 按设计不会补造缺失事实，其修复候选在仍不合规时被闸门拒绝（这正是闸门应有的行为）。接入真实模型后需以 `--live` 复测。
+- **修复成功率**：mock provider 按设计不补造缺失事实，其修复候选在仍不合规时被闸门拒绝——这正是闸门应有的行为，由 `tests/test_step_repair.py` 单独覆盖。该行只在 `--live` 接真实模型时可判定。曾考虑增设「修复触发正确率」把这一格变绿，但 `RepairStep.should_run` 的触发条件与 `rules` 步骤的判据互为逆否，新指标恒等于 100%，属于假信号，故不加。
 
-“优化前”判据为：对 `raw_output` 直接 `json.loads` 并按严格类型校验，即下游程序不经任何处理能否直接消费。
+“优化前”判据为：对 `raw_output` 直接 `json.loads` 并按严格类型校验，即下游程序不经任何处理能否直接消费。「平均分变化」的优化前得分与它同判据：原始结构直接进 `rules` 计分，**不经 SchemaStep**。此前该行复用 `rescore()`，别名映射与类型归一已把优化器的收益预先算进“优化前”，同一口径下分差被压成 +0.005；口径对齐后实测 +0.289。
 
 ## 10. 可靠性设计
 
@@ -513,6 +512,7 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 ## 11. 适用范围与已知限制
 
 - 规则评分关注结构、格式与事实溯源，对语义层面的错误不敏感；拟人化的自然度依赖重写模型能力，可通过可选的 LLM 评分维度或人工抽检评估。
+- 事实溯源只**报告**、不**清除**：数值或引用在原文中定位不到时，`grounding` 维度相应降分并触发修复，但优化器不删除可疑条目——判断“哪一条是幻觉”需要外部知识库比对，本版本不做。该行为由金标集 `g039` 固化为回归断言（一条不在原文中的引用经修复采纳后仍保留在输出里）。
 - 拟人化重写仅保证“事实不变”，不保证学术观点正确；学术结论的正确性仍由作者负责。
 - 当前版本仅承诺 OpenAI 兼容协议；访问 Anthropic、Gemini 等专有协议需实现对应的 Provider 适配器。
 - harness 驱动（§7.5）是仅本机的实验面：无鉴权、不流式、只取最终回答，不解析工具调用轨迹。可驱动的 CLI 由内置 profile 表穷举——**已检测到但未登记的 CLI 只会显示"暂不支持驱动"，不会得到执行入口**；新增一个 CLI 需要改代码。Windows 下不能直接 exec npm 的 `codex.cmd`/`codex.ps1` 包装，发现器因此解析 `node.exe + codex.js`；超时只保证回收直接子进程，**其派生的孙进程不保证被清理**；stdout 若被截断，取回内容可能不是合法 JSON。`openai-api` 形态需要真实密钥才能端到端验证。
@@ -555,7 +555,7 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 │   ├── repair.txt
 │   └── humanize.txt
 ├── data/
-│   ├── golden.jsonl             # 金标集（12 条，预存 raw_output）
+│   ├── golden.jsonl             # 金标集（34 条，预存 raw_output）
 │   ├── request.example.json     # HTTP 请求样例，供 curl --data-binary 使用
 │   └── reports/                 # 评估报告（Markdown + 同名 CSV）
 ├── scripts/
@@ -584,7 +584,7 @@ pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 - 拟人化单测：以 mock 重写结果断言数值、引用与关键字段在重写前后不变。
 - 回归测试：以金标集的 `final_output` 作为基线快照（`tests/golden_baseline.json`，`OPTIMIZE_UPDATE_GOLDEN=1 pytest` 可重写）。
 
-v0.3 实测：262 项用例通过，`app/` 行与分支综合覆盖率 win32 为 89.61%、linux 为 89.76%（CI 门槛 80%）。用例数在 CI 的 5 个 Tests job（ubuntu 3.11/3.12/3.13/3.14 + windows 3.13）与本机 3.12.10、3.13.15 上完全一致，覆盖率只随平台浮动 0.15 个百分点、与 Python 版本无关；此前记录的 259 项 / 91.06% 是 harness 注册表落地前的旧值。当前最低的两处是 `app/harness/__init__.py`（65%）与 `app/optimizer/steps/references.py`（83%）：前者是因为测试一律置 `HARNESS_DETECT=false`，发现式装配 `_detected()` 与多 profile 的 `HarnessRegistry` 分支没有被执行；后者是引用解析的各方言分支尚未逐一覆盖。除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
+v0.3 实测：263 项用例通过，`app/` 行与分支综合覆盖率 89.91%（win32；本机 3.12.10 与 3.13.15 两套隔离环境结果一致，CI 门槛 80%）。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高），与 Python 版本无关；README 历史里的 259 项 / 91.06%、262 项 / 89.61% 均为对应提交时的实测值，随步骤与用例增减而变。当前覆盖率最低的两处是 `app/harness/__init__.py`（65%）与 `app/optimizer/steps/references.py`（83%）：前者是因为测试一律置 `HARNESS_DETECT=false`，发现式装配 `_detected()` 与多 profile 的 `HarnessRegistry` 分支没有被执行；后者是引用解析的各方言分支尚未逐一覆盖。除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
 
 ## 14. 版本规划
 
