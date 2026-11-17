@@ -370,6 +370,8 @@ curl -s -X POST localhost:8000/v1/run -H "content-type: application/json" \
 
 驱动 npm 版 Codex CLI 的参考配置见 `.env.example` 注释：Windows 下不能直接 exec `codex.cmd`/`codex.ps1`，必须指向 `node.exe` 并把 `codex.js` 作为固定参数；`-o {output_file}` 占位符会被替换成本次运行的临时文件，用于取回最终回答而不是解析混有事件日志的 stdout；沙箱一律锁 `-s read-only`。
 
+> 启用前请先确认已安装的 harness 版本支持账号当前使用的模型。版本不匹配时 harness 会以非零退出，本层返回 502 并透传其 stderr，**不会**进入优化管线、也不写审计记录。
+
 ## 8. 配置参考
 
 ### 8.1 环境变量
