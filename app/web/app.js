@@ -20,7 +20,7 @@ const DIMENSION_LABELS = {
   grounding: "与输入一致性",
 };
 
-const state = { config: null, items: [], selectedLine: null };
+const state = { config: null, items: [], selectedLine: null, harnessNotes: {} };
 
 const $ = (id) => document.getElementById(id);
 
@@ -535,17 +535,102 @@ async function submitRun(event) {
   }
 }
 
+function harnessInfo() {
+  return (state.config && state.config.harness) || { enabled: false, options: [], name: null, timeout_ms: 0 };
+}
+
 function renderHarnessEntry() {
-  const info = (state.config && state.config.harness) || { enabled: false };
+  const info = harnessInfo();
   const button = $("harness-run-btn");
   const task = $("field-task");
-  button.disabled = !info.enabled;
-  task.disabled = !info.enabled;
-  $("harness-hint").textContent = info.enabled
-    ? `已启用 ${info.name} · 超时 ${info.timeout_ms}ms · 并发上限 ${info.max_concurrency}`
-    : "未启用：在 .env 设 HARNESS_ENABLED=true 并把命令绝对路径加入 HARNESS_ALLOWED_COMMANDS 后重启服务";
+  const options = info.options || [];
+  button.disabled = !info.enabled || !options.length;
+  task.disabled = button.disabled;
   if (!info.enabled) {
-    task.placeholder = "harness 驱动默认关闭；已有输出请用下方「输入」区直接优化";
+    $("harness-hint").textContent =
+      "未启用：在 .env 设 HARNESS_ENABLED=true 后重启服务（可选 HARNESS_PROVIDERS 限定 profile）";
+  } else if (!options.length) {
+    $("harness-hint").textContent = "已启用但没有可驱动的 harness：检查下方检测结果或 API 密钥";
+  } else {
+    $("harness-hint").textContent =
+      `已装配 ${options.length} 个 profile（默认 ${info.name}）· 超时 ${info.timeout_ms}ms · 并发上限 ${info.max_concurrency}`;
+  }
+}
+
+function renderHarnessOptions(options) {
+  const select = $("field-harness");
+  clear(select);
+  const names = (options || harnessInfo().options) || [];
+  if (!names.length) {
+    const none = el("option", null, "（无可驱动 profile）");
+    none.value = "";
+    select.appendChild(none);
+    select.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  const preferred = harnessInfo().name;
+  names.forEach((name) => {
+    const option = el("option", null, name);
+    option.value = name;
+    if (name === preferred) option.selected = true;
+    select.appendChild(option);
+  });
+}
+
+function statusClass(item) {
+  if (!item.drivable) return "unknown";
+  if (item.status === "可执行") return item.version ? "ok" : "info";
+  return "warn";
+}
+
+function renderDetected(data) {
+  const box = $("harness-detected");
+  clear(box);
+  const items = data.detected || [];
+  if (!items.length) {
+    box.appendChild(el("div", "muted-note", "未检测到内置 profile 支持的 CLI。可在 .env 用 HARNESS_COMMAND 显式指定。"));
+    return;
+  }
+  items.forEach((item) => {
+    const row = el("div", "detected-row");
+    row.appendChild(el("span", `dot ${statusClass(item)}`));
+    row.appendChild(el("span", "det-name", item.profile));
+    const bits = [item.status];
+    if (item.version) bits.push(item.version);
+    if (item.login) bits.push(item.login);
+    if (item.detail) bits.push(item.detail);
+    const detail = el("span", "det-detail", bits.join(" · "));
+    detail.title = item.entry || "";
+    row.appendChild(detail);
+    box.appendChild(row);
+  });
+}
+
+function renderProfileNotes() {
+  const node = $("harness-notes");
+  const selected = $("field-harness").value;
+  const notes = (state.harnessNotes && state.harnessNotes[selected]) || [];
+  node.textContent = notes.length ? notes.join("；") : "";
+}
+
+async function loadHarnesses(probe) {
+  const button = $("harness-detect-btn");
+  const statusNode = $("harness-status");
+  button.disabled = true;
+  if (probe) statusNode.textContent = "探测中…";
+  try {
+    const query = new URLSearchParams({ probe: probe ? "true" : "false" });
+    const data = await getJSON(`/v1/harnesses?${query.toString()}`);
+    state.harnessNotes = data.notes || {};
+    renderDetected(data);
+    renderProfileNotes();
+    if (probe) statusNode.textContent = data.probed ? "探测完成" : "驱动未启用，已跳过探测";
+  } catch (error) {
+    clear($("harness-detected"));
+    $("harness-detected").appendChild(el("div", "muted-note", `检测失败：${error.message}`));
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -563,6 +648,7 @@ async function submitHarness() {
   statusNode.textContent = "harness 运行中…";
   const payload = {
     task,
+    harness: $("field-harness").value || null,
     schema: $("field-schema").value || null,
     instruction: $("field-instruction").value,
     input_text: $("field-input-text").value,
@@ -609,6 +695,8 @@ async function init() {
   $("new-run").addEventListener("click", resetRun);
   $("optimize-form").addEventListener("submit", submitRun);
   $("harness-run-btn").addEventListener("click", submitHarness);
+  $("harness-detect-btn").addEventListener("click", () => loadHarnesses(true));
+  $("field-harness").addEventListener("change", renderProfileNotes);
 
   try {
     state.config = await getJSON("/v1/config");
@@ -620,9 +708,11 @@ async function init() {
   renderOptionToggles();
   renderEnv();
   renderHarnessEntry();
+  renderHarnessOptions();
   resetRun();
   await loadHistory();
   await refreshHealth();
+  await loadHarnesses(false);
 }
 
 document.addEventListener("DOMContentLoaded", init);

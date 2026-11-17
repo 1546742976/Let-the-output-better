@@ -327,9 +327,75 @@ body {
 }
 
 textarea:disabled,
-input:disabled {
+input:disabled,
+select:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* ---------- harness 检测表 ---------- */
+
+.ghost {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: 12px var(--sans);
+  cursor: pointer;
+}
+
+.ghost:hover:not(:disabled) {
+  color: var(--text);
+  border-color: #33405a;
+}
+
+.ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.detected {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background: var(--bg-input);
+  padding: 7px 9px;
+  min-height: 34px;
+}
+
+.detected-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 11.5px var(--mono);
+}
+
+.det-name {
+  color: var(--text);
+  flex: none;
+}
+
+.det-detail {
+  margin-left: auto;
+  color: var(--muted);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 52%;
+}
+
+.prov-note {
+  margin: -2px 0 11px;
+  font: 11.5px/1.55 var(--sans);
+  color: var(--muted);
+}
+
+.prov-note:empty {
+  display: none;
 }
 
 /* ---------- form ---------- */

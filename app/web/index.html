@@ -34,12 +34,24 @@
             <h2>驱动 harness <span class="badge">实验面</span></h2>
             <span class="panel-hint" id="harness-hint"></span>
           </div>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">harness profile（只能选内置项，参数由服务端常量决定）</span>
+              <select id="field-harness"></select>
+            </label>
+            <div class="field">
+              <span class="field-label">本机检测结果（默认不执行任何被发现的程序）</span>
+              <div class="detected" id="harness-detected"></div>
+            </div>
+          </div>
+          <div class="prov-note" id="harness-notes"></div>
           <label class="field">
-            <span class="field-label">task · 交给 harness 的任务（经 stdin 传给服务端白名单命令；请求体无法指定命令）</span>
+            <span class="field-label">task · 交给 harness 的任务（经 stdin 或 API 传入，不进 argv）</span>
             <textarea id="field-task" rows="3" spellcheck="false" placeholder="例如：总结这篇论文的方法与结论"></textarea>
           </label>
           <div class="submit-row">
             <button type="button" class="primary" id="harness-run-btn">运行 harness + 二次优化</button>
+            <button type="button" class="ghost" id="harness-detect-btn">带探测重新检测</button>
             <span class="status-line" id="harness-status"></span>
           </div>
         </section>
