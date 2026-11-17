@@ -618,6 +618,33 @@ body {
   background: var(--raised);
 }
 
+/* 删掉的是无据限定，留下的是研究边界：两者必须一眼可分。 */
+.tag.cut {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.tag.keep {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.tag.claim {
+  color: var(--muted);
+}
+
+.tag.claim.on {
+  color: var(--ok);
+}
+
+.tag.claim.off {
+  color: var(--warn);
+}
+
+.reason-note {
+  color: var(--faint);
+}
+
 .errors {
   margin-top: var(--s3);
   font: var(--fs1)/1.6 var(--mono);

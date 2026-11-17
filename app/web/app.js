@@ -29,8 +29,12 @@ const DIMENSION_LABELS = {
   grounding: "与输入一致性",
   preservation: "与原文一致性",
   plainness: "通俗度",
+  confidence: "自信度",
   concision: "简洁度",
 };
+
+// 留痕尾部的分组：分值只说明"不好读"，标签才指出哪句是废话、哪句是真边界。
+const REASON_TAGS = { 命中: "hit", 删除无据: "cut", 保留边界: "keep" };
 
 const state = { config: null, items: [], selectedLine: null, harnessNotes: {} };
 
@@ -362,15 +366,26 @@ function renderSteps(steps) {
     row.appendChild(el("span", "step-ms", `${step.ms ?? 0}ms${scoreText}`));
     if (step.reason) {
       const reason = el("div", "step-reason");
-      // 命中条目单独成标签：分数只能说明不好读，标签才能指出哪几句在打太极。
-      const mark = step.reason.indexOf("｜命中：");
-      reason.textContent = mark >= 0 ? step.reason.slice(0, mark) : step.reason;
-      if (mark >= 0) {
-        step.reason
-          .slice(mark + "｜命中：".length)
+      const parts = String(step.reason).split("｜");
+      reason.textContent = parts.shift();
+      parts.forEach((part) => {
+        const at = part.indexOf("：");
+        if (at < 0) {
+          reason.appendChild(el("span", "reason-note", part));
+          return;
+        }
+        const label = part.slice(0, at);
+        if (label === "主张先行") {
+          reason.appendChild(el("span", `tag claim ${part.endsWith("是") ? "on" : "off"}`, part));
+          return;
+        }
+        const style = REASON_TAGS[label];
+        if (!style) return;
+        part
+          .slice(at + 1)
           .split("、")
-          .forEach((label) => reason.appendChild(el("span", "tag hit", label)));
-      }
+          .forEach((item) => reason.appendChild(el("span", `tag ${style}`, item)));
+      });
       row.appendChild(reason);
     }
     box.appendChild(row);
