@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import count
@@ -26,11 +27,18 @@ from app.settings import (
 )
 
 _request_counter = count(1)
+#: 进程级随机前缀：同一天多进程（并行评估、多个 uvicorn worker）不再撞号。
+_request_nonce = uuid.uuid4().hex[:6]
 
 
 def new_request_id() -> str:
-    """形如 ``req_20261116_0001``：日期 + 进程内序号。"""
-    return f"req_{time.strftime('%Y%m%d')}_{next(_request_counter):04d}"
+    """形如 ``req_20261116_a1b2c3_0001``：日期 + 进程 nonce + 进程内序号。
+
+    仅用日期加进程内计数器时，多进程各自从 0001 起会写出完全相同的 id
+    （实测 118 条里 13 组重号，最多一条重复 8 次）。补一段进程启动时生成的
+    随机 nonce 后，id 在同一审计文件内即可唯一，查看页不再需要靠行号兜底。
+    """
+    return f"req_{time.strftime('%Y%m%d')}_{_request_nonce}_{next(_request_counter):04d}"
 
 
 @dataclass

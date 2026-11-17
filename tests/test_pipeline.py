@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -81,10 +83,19 @@ class TestEntryContract:
         assert result.usage == {"prompt_tokens": 0, "completion_tokens": 0}
 
     def test_request_id_shape(self):
-        identifier = new_request_id()
-        prefix, date_part, sequence = identifier.split("_")
-        assert (prefix, len(date_part), len(sequence)) == ("req", 8, 4)
-        assert identifier != new_request_id()
+        prefix, date_part, nonce, sequence = new_request_id().split("_")
+        assert (prefix, len(date_part), len(nonce), len(sequence)) == ("req", 8, 6, 4)
+        assert new_request_id() != new_request_id()
+
+    def test_request_id_differs_across_processes(self):
+        """进程内计数器在各进程都从 0001 起，靠 nonce 区分；同一天多进程不得重号。"""
+        root = str(Path(__file__).resolve().parents[1])
+        code = f"import sys; sys.path.insert(0, {root!r}); from app.optimizer.pipeline import new_request_id; print(new_request_id())"
+        outputs = [
+            subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip()
+            for _ in range(2)
+        ]
+        assert len(set(outputs)) == 2, outputs
 
 
 class TestStepToggles:
