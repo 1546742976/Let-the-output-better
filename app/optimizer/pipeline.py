@@ -199,6 +199,7 @@ async def optimize(
                 "provider": getattr(active_provider, "name", "unknown"),
                 "schema": getattr(model_cls, "__name__", None),
                 "instruction": instruction,
+                "input_text": input_text,
                 "valid": result.valid,
                 "score": result.score,
                 "dimensions": result.dimensions,

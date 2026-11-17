@@ -1,4 +1,4 @@
-"""FastAPI 入口：``POST /v1/optimize`` 与 ``GET /healthz``。"""
+"""FastAPI 入口：``POST /v1/optimize``、``GET /healthz`` 与本地查看页。"""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from app.optimizer import optimize
 from app.providers import build_provider
 from app.schemas import SCHEMA_REGISTRY
 from app.settings import get_pipeline_config, get_settings
+from app.viewer import mount as mount_viewer
 
 
 class Options(BaseModel):
@@ -52,6 +53,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Let-the-output-better", version="0.2.0", lifespan=lifespan)
+mount_viewer(app)
 
 
 @app.get("/healthz")
