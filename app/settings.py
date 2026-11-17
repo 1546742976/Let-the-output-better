@@ -20,8 +20,8 @@ from app.harness.command import resolve_allowed_command
 
 DEFAULT_PIPELINE_PATH = Path("config") / "pipeline.yaml"
 SUPPORTED_PROVIDERS = ("mock", "openai")
-#: 散文输出的评分口径：通俗化是主目标，结构完整性不适用。
-PROSE_WEIGHTS = {"plainness": 0.5, "concision": 0.3, "preservation": 0.2}
+#: 散文输出的评分口径：去防御化是主目标，结构完整性不适用。
+PROSE_WEIGHTS = {"plainness": 0.35, "confidence": 0.3, "concision": 0.2, "preservation": 0.15}
 #: 结构化输出的评分口径：保留原有三维，另加一维通俗度。
 STRUCTURED_WEIGHTS = {"completeness": 0.3, "format": 0.25, "grounding": 0.25, "plainness": 0.2}
 # 开发者本地可能存在 .env；测试通过 OPTIMIZE_ENV_FILE=dev/null 让配置只来自默认值与环境变量。

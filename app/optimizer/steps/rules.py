@@ -82,12 +82,13 @@ class RulesStep(BaseStep):
         weights = self._weights(prose)
         style = self.config.reference_style if self.config is not None else "gb-t-7714"
 
-        language = report(self._narrative(ctx))
+        language = report(self._narrative(ctx), ctx.input_text or None)
         preservation = self._grounding(ctx) if ctx.input_text.strip() else None
 
         if prose:
             dimensions: dict[str, float | None] = {
                 "plainness": language.plainness,
+                "confidence": language.confidence,
                 "concision": language.concision,
                 "preservation": preservation,
             }

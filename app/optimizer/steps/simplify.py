@@ -18,7 +18,14 @@ from collections import Counter
 from app.optimizer.context import StepContext
 from app.optimizer.steps import register_step
 from app.optimizer.steps.base import BaseStep, StepResult
-from app.plain import GROUP_WEIGHTS, report
+from app.plain import (
+    GROUP_WEIGHTS,
+    SCOPE_NOUNS,
+    normalize_text,
+    qualifications,
+    referents,
+    report,
+)
 from app.providers.base import ProviderError
 from app.textio import load_prompt, render_prompt
 
@@ -28,7 +35,7 @@ MIN_LENGTH = 12
 GROWTH_LIMIT = 1.10
 #: 一次运行最多改写的文本字段数，避免多字段时成倍付出调用成本。
 MAX_FIELDS = 3
-SYSTEM = "你是通俗改写器，只输出改写后的文本，不解释、不加引号或代码围栏。"
+SYSTEM = "你是去防御化改写器：像作者本人陈述结论那样重写，只输出改写后的文本，不解释、不加围栏。"
 DEFAULT_PROMPT = load_prompt("prompts/simplify.txt")
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
@@ -56,20 +63,64 @@ def check_facts(before: str, after: str) -> str | None:
     return None
 
 
-def _comparison(before: str, after: str) -> str:
-    """改前/改后的通俗化指标对照，直接进 reason 与审计留痕。
+def _scope_keys(text: str, source: str | None) -> set[str]:
+    """改写必须留住的限定语指称集合（boundary 与 unverified 都受保护）。"""
+    keys: set[str] = set()
+    for item in qualifications(text, source):
+        if item["verdict"] not in ("boundary", "unverified"):
+            continue
+        for token in referents(str(item["text"])):
+            keys.add(normalize_text(token))
+        for noun in SCOPE_NOUNS:
+            if noun in str(item["text"]):
+                keys.add(normalize_text(noun))
+    return keys
 
-    命中条目也写进来：只给一个分数无法回答"到底哪几句是防御性废话"。
+
+def check_boundaries(before: str, after: str, source: str | None) -> str | None:
+    """改写前判为研究边界的限定语，其指称若在改写后消失即为误删。
+
+    这是"保留真正影响结论的研究边界"唯一的强制执行方式——写在提示词里只是希望。
     """
-    b, a = report(before), report(after)
+    required = {key for key in _scope_keys(before, source) if key}
+    if not required:
+        return None
+    # 键是归一化后的指称，比对对象也必须归一化：否则 "12.5" 归一成 "125" 后
+    # 在原文里"找不到"，会把合法改写误判成丢失边界。
+    haystack = normalize_text(after)
+    lost = sorted(key for key in required if key not in haystack)
+    if lost:
+        return f"丢失研究边界（{len(lost)} 处指称消失：{'、'.join(lost[:3])}）"
+    return None
+
+
+def _clip(text: str) -> str:
+    """留痕里只显示前 18 字，但截出来的半句不该以逗号收尾。"""
+    return text[:18].rstrip("，、；：,;: ")
+
+
+def _comparison(before: str, after: str, source: str | None = None) -> str:
+    """改前/改后的通俗化与自信度对照，直接进 reason 与审计留痕。
+
+    命中条目与判定结果也写进来：只给分数无法回答"到底哪句是废话、哪句是边界"。
+    """
+    b, a = report(before, source), report(after, source)
     labels = [f.label for f in b.findings if f.group in GROUP_WEIGHTS]
     order = list(dict.fromkeys(labels))[:6]
-    tail = f"｜命中：{'、'.join(order)}" if order else ""
+    cut = [_clip(str(item["text"])) for item in b.qualifications if item["verdict"] == "ungrounded"]
+    keep = [_clip(str(item["text"])) for item in b.qualifications if item["verdict"] in ("boundary", "unverified")]
+    tails = [f"｜命中：{'、'.join(order)}" if order else ""]
+    if cut:
+        tails.append(f"｜删除无据：{'、'.join(cut[:3])}")
+    if keep:
+        tails.append(f"｜保留边界：{'、'.join(keep[:3])}")
+    tails.append("｜主张先行：是" if a.ordering.get("claim_first") else "｜主张先行：否")
     return (
         f"防御措辞 {int(b.metrics['hard_hits'])} → {int(a.metrics['hard_hits'])} 处；"
         f"句均 {b.metrics['avg_len']:.0f} → {a.metrics['avg_len']:.0f} 字；"
         f"plainness {b.plainness} → {a.plainness}；"
-        f"concision {b.concision} → {a.concision}{tail}"
+        f"concision {b.concision} → {a.concision}；"
+        f"confidence {b.confidence} → {a.confidence}" + "".join(tail for tail in tails if tail)
     )
 
 
@@ -137,6 +188,9 @@ class SimplifyStep(BaseStep):
                 unchanged.append(field_name)
                 continue
             violation = check_facts(text, candidate)
+            if violation is None:
+                # 顺序：先保事实，再保研究边界，最后看有没有变长。
+                violation = check_boundaries(text, candidate, ctx.input_text or None)
             if violation:
                 rejected.append(f"{field_name}：{violation}")
                 continue
@@ -144,7 +198,7 @@ class SimplifyStep(BaseStep):
                 rejected.append(f"{field_name}：未变简洁（{len(text)} → {len(candidate)} 字）")
                 continue
             self._apply(ctx, field_name, candidate)
-            adopted.append(_comparison(text, candidate))
+            adopted.append(_comparison(text, candidate, ctx.input_text or None))
 
         if adopted:
             ctx.changes.append("采纳通俗化重写")

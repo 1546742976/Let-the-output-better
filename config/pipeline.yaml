@@ -5,16 +5,17 @@ steps:
 
   - name: rules
     enabled: true
-    weights:                # 散文与结构化各用一组权重，缺省见 app/settings.py
+    weights:                # 散文与结构化各用一组权重，缺省见 app/settings.py；此处改动会覆盖缺省
       prose:
-        plainness: 0.5
-        concision: 0.3
-        preservation: 0.2
+        plainness: 0.35     # 字面直白度：套话、行话、冗长句式
+        confidence: 0.3     # 学术自信度：无据限定与主张后置扣分，真实边界不扣
+        concision: 0.2      # 简洁度：句均字数与长句占比
+        preservation: 0.15  # 与原文一致性：仅在提供 input_text 时参与计分
       structured:
         completeness: 0.3
         format: 0.25
         grounding: 0.25
-        plainness: 0.2
+        plainness: 0.2      # 结构化只评叙述字段，JSON 元数据没有"主张顺序"可言
 
   - name: repair
     enabled: true
