@@ -159,7 +159,7 @@ async def optimize(
     degraded_reason = ""
     try:
         steps = await asyncio.wait_for(_run_steps(ctx), timeout=timeout_s)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         degraded, degraded_reason = True, f"管线超时（{effective.timeout_ms}ms），回退原始输出"
         ctx.markers.append("timeout")
     except Exception as exc:

@@ -27,8 +27,9 @@ PROBE_TEXT_LIMIT = 200
 PROBE_TIMEOUT_S = 5.0
 #: Windows 下这些扩展名不是可直接 exec 的程序；PATH 命中它们只能当指针。
 SCRIPT_SUFFIXES = {".cmd", ".bat", ".ps1", ".sh", ".txt", ".js", ".json"}
-#: 小于该字节数的 .exe 基本可以断定是 npm 留下的 sh 桩。
-STUB_MAX_BYTES = 4096
+#: 真实可执行文件的文件头。npm 未跑 postinstall 时留下的 "exe" 其实是 #!/bin/sh 文本，
+#: 在 Linux 上它同样带可执行位，只看 X_OK 会把桩选中成真身。
+MACHO_MAGICS = (b"\xca\xfe\xba\xbe", b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xcf", b"\xfe\xed\xfa\xcf", b"\xfe\xed\xfa\xce")
 
 
 @dataclass(frozen=True)
@@ -58,19 +59,16 @@ def _path_dirs() -> list[Path]:
 
 
 def _npm_roots() -> list[Path]:
-    """找全局 node_modules：优先用 PATH 上的目录推断，再补几个常见安装位置。
+    """只从 PATH 推断全局 node_modules，不猜绝对路径。
 
-    绝不用 ``npm root -g``——那等于在扫描阶段执行外部程序。
+    标准布局里 node_modules 要么与命令同级（Windows 的 ``npm/``），要么在
+    ``<bin 的上级>/lib/node_modules``（nvm 与发行版安装）。直接写死
+    ``/usr/lib/node_modules`` 会让检测结果取决于 runner 上装了什么，测试就不稳定了。
     """
-    candidates = [directory / "node_modules" for directory in _path_dirs()]
-    home = Path.home()
-    candidates.extend(
-        [
-            home / ".npm-global" / "node_modules",
-            Path("/usr/local/lib/node_modules"),
-            Path("/usr/lib/node_modules"),
-        ]
-    )
+    candidates: list[Path] = []
+    for directory in _path_dirs():
+        candidates.append(directory / "node_modules")
+        candidates.append(directory.parent / "lib" / "node_modules")
     roots: list[Path] = []
     seen: set[Path] = set()
     for candidate in candidates:
@@ -89,23 +87,24 @@ def _npm_roots() -> list[Path]:
     return roots
 
 
-def _is_pe(path: Path) -> bool:
+def _is_binary(path: Path) -> bool:
     try:
-        if path.stat().st_size <= STUB_MAX_BYTES:
-            return False
         with path.open("rb") as handle:
-            return handle.read(2) == b"MZ"
+            head = handle.read(4)
     except OSError:
         return False
+    return head[:2] == b"MZ" or head[:4] == b"\x7fELF" or head[:4] in MACHO_MAGICS
 
 
 def _is_runnable(path: Path) -> bool:
-    """能否被 create_subprocess_exec 直接执行（不含宿主+脚本形态）。"""
+    """能否被 create_subprocess_exec 直接执行；跨平台地排除脚本与桩文件。"""
     if not path.is_file():
         return False
-    if os.name == "nt":
-        return path.suffix.lower() not in SCRIPT_SUFFIXES and _is_pe(path)
-    return os.access(path, os.X_OK)
+    if os.name == "nt" and path.suffix.lower() in SCRIPT_SUFFIXES:
+        return False
+    if not _is_binary(path):
+        return False
+    return True if os.name == "nt" else os.access(path, os.X_OK)
 
 
 def _inside(child: Path, root: Path) -> bool:
@@ -265,10 +264,10 @@ async def _run_probe(argv: list[str], timeout_s: float) -> tuple[int | None, str
         return None, ""
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=max(0.1, timeout_s))
-    except asyncio.TimeoutError:
+    except TimeoutError:
         with contextlib.suppress(ProcessLookupError):
             proc.kill()
-        with contextlib.suppress(asyncio.TimeoutError, OSError):
+        with contextlib.suppress(TimeoutError, OSError):
             await asyncio.wait_for(proc.wait(), 2.0)
         return None, "探测超时"
     text = (stdout or b"").decode("utf-8", errors="replace") or (stderr or b"").decode("utf-8", errors="replace")

@@ -24,9 +24,12 @@ def make_exe(path: Path, *, payload: bytes = b"MZ" + b"\x00" * 8000) -> Path:
     return path
 
 
-def make_npm_tree(bin_dir: Path) -> None:
-    """构造与真实机器同形的最小 npm 全局布局：node_modules 与命令 shim 同级。"""
-    root = bin_dir / "node_modules"
+def make_npm_tree(container: Path) -> None:
+    """构造与真实机器同形的最小 npm 全局布局：node_modules 与命令 shim 同级。
+
+    container 既可以是 bin 目录（Windows 的 npm 布局），也可以是 lib 目录（nvm/发行版布局）。
+    """
+    root = container / "node_modules"
     codex = root / "@openai" / "codex"
     (codex / "bin").mkdir(parents=True, exist_ok=True)
     (codex / "bin" / "codex.js").write_text("// codex entry\n", encoding="utf-8")
@@ -79,7 +82,30 @@ class TestScan:
         assert opencode.status == "不支持驱动"
         assert "opencode-windows-x64" in str(opencode.entry)
 
+    def test_script_stub_is_rejected_on_every_platform(self, tmp_path: Path):
+        """桩文件在 Linux 上也带可执行位，只能靠文件头识别，不能靠大小或 X_OK。"""
+        stub = make_exe(tmp_path / "bin" / "opencode.exe", payload=SCRIPT_STUB)
+        assert detect._is_binary(stub) is False
+        assert detect._is_runnable(stub) is False
+
+    def test_pe_and_elf_heads_are_accepted(self, tmp_path: Path):
+        assert detect._is_binary(make_exe(tmp_path / "a.exe", payload=b"MZ\x90\x00rest")) is True
+        assert detect._is_binary(make_exe(tmp_path / "b", payload=b"\x7fELF\x02\x01rest")) is True
+
+    def test_lib_layout_is_found_from_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """nvm/发行版布局：node_modules 在 <bin 的上级>/lib 下。"""
+        bin_dir = tmp_path / "nvm" / "v24" / "bin"
+        bin_dir.mkdir(parents=True)
+        make_exe(bin_dir / "node.exe")
+        make_npm_tree(bin_dir.parent / "lib")
+        # bin 目录下没有 node_modules，只能靠 ../lib 规则找到。
+        monkeypatch.setenv("PATH", str(bin_dir))
+        found = {c.profile: c for c in detect.scan()}
+        assert "codex" in found
+        assert found["codex"].status == "可执行"
+
     def test_nothing_detected_on_clean_machine(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """只依赖 PATH：不得因为 runner 自己装了 node 就检出东西。"""
         monkeypatch.setenv("PATH", str(tmp_path / "empty"))
         assert detect.scan() == []
 

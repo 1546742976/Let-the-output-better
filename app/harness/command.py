@@ -131,7 +131,7 @@ class CommandHarness(BaseHarness):
                 stdout, stderr, truncated = await asyncio.wait_for(
                     self._exchange(proc, task), timeout=max(0.1, timeout_s)
                 )
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 await self._terminate(proc)
                 raise HarnessTimeout(f"harness 超时（{timeout_s:.1f}s），已终止子进程") from exc
             except OSError as exc:
@@ -224,7 +224,7 @@ class CommandHarness(BaseHarness):
         with contextlib.suppress(ProcessLookupError):
             proc.kill()
         # kill 之后必须收割，否则留僵尸进程与未关闭的管道。
-        with contextlib.suppress(asyncio.TimeoutError, OSError):
+        with contextlib.suppress(TimeoutError, OSError):
             await asyncio.wait_for(proc.wait(), REAP_TIMEOUT_S)
 
 
