@@ -19,3 +19,5 @@
 {"id": "q19", "sentence": "在 24 名被试上得到的结论可能不稳。", "source": "研究纳入 24 名被试。", "expect": "boundary", "why": "无边界线索但含领域名词（被试）：名词自己就划定了范围"}
 {"id": "q20", "sentence": "The model reaches 91.2% top-1 accuracy on ImageNet.", "source": "Top-1 accuracy is 91.2% on ImageNet.", "expect": null, "why": "无标记的主张句，中英同样不判为限定语"}
 {"id": "q21", "sentence": "这并不意味着 ResNet-50 上的结果可以推广。", "source": "骨干网络统一使用 ResNet-50。", "expect": "boundary", "why": "自我否定与真范围叠加时的取舍，已由用户确认按保守原则保留：标识符确实划定了范围，代价是这类撤回模板留在文本里"}
+{"id": "q22", "sentence": "这一结论仍需结合仅覆盖 240×320 分辨率的实验设置谨慎解读。", "source": "实验仅覆盖 240×320 分辨率图像，未在更大分辨率上测试。", "expect": "boundary", "why": "覆盖类线索（仅覆盖）+ 数字划定真实范围：收紧裸数字规则时差点误杀这类真边界"}
+{"id": "q23", "sentence": "本研究涉及若干医院，结论或许可以推广。", "source": "研究涉及若干合作医院。", "expect": "ungrounded", "why": "有覆盖线索但零指称（若干不是数字、医院不是领域名词）：线索本身不足以构成边界"}
