@@ -584,7 +584,7 @@ pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 - 拟人化单测：以 mock 重写结果断言数值、引用与关键字段在重写前后不变。
 - 回归测试：以金标集的 `final_output` 作为基线快照（`tests/golden_baseline.json`，`OPTIMIZE_UPDATE_GOLDEN=1 pytest` 可重写）。
 
-v0.3 实测：262 项用例通过，`app/` 行与分支综合覆盖率 89.61%（CI 门槛 80%）。同一份代码在 win32 / Python 3.12.10 与 3.13.15 下逐文件统计完全一致（2046 语句 / 159 未覆盖 / 610 分支 / 85 部分分支），覆盖率差异不来自平台与解释器版本；此前记录的 259 项 / 91.06% 是 harness 注册表落地前的旧值。当前最低的两处是 `app/harness/__init__.py`（65%）与 `app/optimizer/steps/references.py`（83%）：前者是因为测试一律置 `HARNESS_DETECT=false`，发现式装配 `_detected()` 与多 profile 的 `HarnessRegistry` 分支没有被执行；后者是引用解析的各方言分支尚未逐一覆盖。除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
+v0.3 实测：262 项用例通过，`app/` 行与分支综合覆盖率 win32 为 89.61%、linux 为 89.76%（CI 门槛 80%）。用例数在 CI 的 5 个 Tests job（ubuntu 3.11/3.12/3.13/3.14 + windows 3.13）与本机 3.12.10、3.13.15 上完全一致，覆盖率只随平台浮动 0.15 个百分点、与 Python 版本无关；此前记录的 259 项 / 91.06% 是 harness 注册表落地前的旧值。当前最低的两处是 `app/harness/__init__.py`（65%）与 `app/optimizer/steps/references.py`（83%）：前者是因为测试一律置 `HARNESS_DETECT=false`，发现式装配 `_detected()` 与多 profile 的 `HarnessRegistry` 分支没有被执行；后者是引用解析的各方言分支尚未逐一覆盖。除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
 
 ## 14. 版本规划
 
