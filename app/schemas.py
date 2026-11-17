@@ -156,7 +156,7 @@ class Reference(AcademicModel):
     title: str = Field(validation_alias=AliasChoices("title", "paper_title"))
     authors: list[str] = Field(default_factory=list, validation_alias=AliasChoices("authors", "author"))
     venue: str | None = Field(
-        default=None, validation_alias=AliasChoices("venue", "journal", "book_title", "container")
+        default=None, validation_alias=AliasChoices("venue", "journal", "conference", "book_title", "container")
     )
     year: int | None = Field(default=None, validation_alias=AliasChoices("year", "pub_year", "date"))
     doi: str | None = Field(default=None, validation_alias=AliasChoices("doi", "DOI", "identifier"))
