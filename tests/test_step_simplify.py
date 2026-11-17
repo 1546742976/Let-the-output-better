@@ -51,7 +51,7 @@ async def test_prose_is_simplified_and_adopted(make_ctx, provider, settings):
     assert ctx.markers == []
     # reason 里必须带改前/改后指标，否则审计无法回答"到底变简洁了没有"。
     assert "防御措辞" in result.reason and "→" in result.reason
-    assert "plainness" in result.reason
+    assert "plainness" in result.reason and "confidence" in result.reason
 
 
 async def test_structured_output_is_left_alone_by_default(make_ctx, provider, settings):
@@ -135,6 +135,80 @@ async def test_provider_failure_keeps_original_text(make_ctx, settings):
     assert result.passed is False
     assert ctx.text == DEFENSIVE
     assert "simplify_failed" in ctx.errors
+
+
+async def test_dropping_a_research_boundary_is_rejected(make_ctx, settings):
+    """ "保留真正影响结论的研究边界"只有被强制执行才成立。
+
+    数字全部保留，确保触发的是边界闸门而不是事实闸门。
+    """
+    before = "值得注意的是，本结论仅适用于横截面数据；这或许只能被视为探索性证据。误差降低 12.5%。"
+    overconfident = "本方法将误差降低 12.5%，可普遍适用。"
+    ctx = make_ctx(
+        raw_output=before,
+        text=before,
+        provider=MockProvider(reply=overconfident),
+        schema=None,
+        valid=True,
+        score=0.2,
+        input_text="实验使用横截面数据，误差由 8.0% 降至 7.15%。",
+    )
+    result = await step(settings).run(ctx)
+    assert result.passed is False
+    assert ctx.text == before, "误删边界的改写必须整体丢弃"
+    assert ctx.markers == ["simplify_rejected"]
+    assert "丢失研究边界" in result.reason
+
+
+async def test_removing_ungrounded_while_keeping_boundary_is_adopted(make_ctx, settings):
+    before = "本结论仅在 3 个数据集上得到验证；这或许只能被视为探索性证据，需谨慎解读。"
+    after = "本结论仅在 3 个数据集上得到验证。"
+    ctx = make_ctx(
+        raw_output=before,
+        text=before,
+        provider=MockProvider(reply=after),
+        schema=None,
+        valid=True,
+        score=0.2,
+        input_text="样本覆盖 3 个数据集（ImageNet、CIFAR-10、COCO）。",
+    )
+    result = await step(settings).run(ctx)
+    assert result.passed is True
+    assert ctx.text == after
+    assert "｜保留边界：" in result.reason and "｜删除无据：" in result.reason
+
+
+async def test_boundary_protection_applies_without_source_text(make_ctx, settings):
+    """无原文时判定为 unverified，同样受保护——宁可少删。"""
+    before = "该结论仅适用于横截面数据，或许还需更多证据。"
+    ctx = make_ctx(
+        raw_output=before,
+        text=before,
+        provider=MockProvider(reply="该结论成立，且可推广。"),
+        schema=None,
+        valid=True,
+        score=0.2,
+        input_text="",
+    )
+    result = await step(settings).run(ctx)
+    assert result.passed is False
+    assert "丢失研究边界" in result.reason
+
+
+async def test_claim_first_flag_is_reported(make_ctx, settings):
+    before = "或许只能被视为探索性证据。本方法将误差降低 12.5%。"
+    after = "本方法将误差降低 12.5%。"
+    ctx = make_ctx(
+        raw_output=before,
+        text=before,
+        provider=MockProvider(reply=after),
+        schema=None,
+        valid=True,
+        score=0.2,
+        input_text="误差由 8.0% 降至 7.0%。",
+    )
+    result = await step(settings).run(ctx)
+    assert "｜主张先行：是" in result.reason
 
 
 async def test_short_text_is_not_worth_a_model_call(make_ctx, provider, settings):

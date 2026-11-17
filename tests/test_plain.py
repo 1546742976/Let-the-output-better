@@ -40,8 +40,13 @@ class TestVocabulary:
         offenders = [item for item in (*BOILERPLATE, *PRAISE, *DISCLAIMER, *HEDGE, *JARGON) if "…" in item]
         assert offenders == []
 
-    def test_hard_hit_groups_are_the_documented_three(self):
-        assert set(GROUP_WEIGHTS) == {"boilerplate", "praise", "disclaimer"}
+    def test_hard_hit_groups_are_the_documented_five(self):
+        assert set(GROUP_WEIGHTS) == {"boilerplate", "praise", "disclaimer", "downgrade", "selfneg"}
+
+    def test_boundary_cues_are_not_a_hard_hit_group(self):
+        """边界线索本身不扣分：它就是诚实范围声明的写法，扣分等于要求模型删掉它。"""
+        assert "boundary_cue" not in GROUP_WEIGHTS
+        assert plainness("本结论仅在 3 个数据集上得到验证。") == 1.0
 
     def test_pattern_list_compiles(self):
         assert all(hasattr(pattern, "findall") for pattern in PATTERNS)
@@ -150,5 +155,23 @@ def test_each_hard_group_can_be_hit(group: str):
         "boilerplate": "值得注意的是，结果如下。",
         "praise": "该方法具有广阔的应用前景。",
         "disclaimer": "以上内容仅供参考。",
+        "downgrade": "这或许只能被视为探索性证据，需谨慎解读。",
+        "selfneg": "这并不意味着该方法有效。",
     }[group]
     assert any(f.group == group for f in findings(sample))
+
+
+@pytest.mark.parametrize("group", sorted(GROUP_WEIGHTS))
+def test_hard_hits_lower_plainness_monotonically(group: str):
+    """同类冗余堆得越多越该低——否则评分对防御性浓度不敏感，闸门形同虚设。"""
+    single = {
+        "boilerplate": "值得注意的是，",
+        "praise": "至关重要，",
+        "disclaimer": "仅供参考，",
+        "downgrade": "充其量，",
+        "selfneg": "并不意味着",
+    }[group]
+    base = plainness("准确率提到 91.2%。")
+    one = plainness(f"{single}准确率提到 91.2%。")
+    two = plainness(f"{single}准确率提到 91.2%。{single}召回率提到 80.4%。")
+    assert base > one >= two

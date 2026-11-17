@@ -92,7 +92,7 @@ class TestProseDimensions:
     async def test_prose_dimensions_exclude_structural_keys(self, make_ctx, settings):
         ctx = make_ctx(raw_output=PLAIN_PROSE, text=PLAIN_PROSE, schema=None, valid=True, input_text="")
         await RulesStep(rules_config(), settings).run(ctx)
-        assert set(ctx.dimensions) == {"plainness", "concision", "preservation"}
+        assert set(ctx.dimensions) == {"plainness", "confidence", "concision", "preservation"}
         assert ctx.dimensions["preservation"] is None, "没有原始材料时一致性维度不参与计分"
 
     async def test_prose_weighted_average_uses_documented_ratios(self, make_ctx, settings):
@@ -124,14 +124,17 @@ class TestWeightOverrides:
     async def test_grouped_weights_from_step_config_are_honored(self, make_ctx, settings):
         ctx = make_ctx(raw_output=DEFENSIVE_PROSE, text=DEFENSIVE_PROSE, schema=None, valid=True, input_text="")
         await RulesStep(
-            rules_config(weights={"prose": {"plainness": 1.0, "concision": 0.0, "preservation": 0.0}}), settings
+            rules_config(
+                weights={"prose": {"plainness": 1.0, "confidence": 0.0, "concision": 0.0, "preservation": 0.0}}
+            ),
+            settings,
         ).run(ctx)
         assert ctx.score == ctx.dimensions["plainness"]
 
     async def test_grouped_weights_apply_per_scenario(self, make_ctx, settings):
         """同一份覆盖只作用于它那一组：改 prose 不该动结构化得分。"""
         weights = {
-            "prose": {"plainness": 1.0, "concision": 0.0, "preservation": 0.0},
+            "prose": {"plainness": 1.0, "confidence": 0.0, "concision": 0.0, "preservation": 0.0},
             "structured": {"completeness": 1.0, "format": 0.0, "grounding": 0.0, "plainness": 0.0},
         }
         prose_ctx = make_ctx(raw_output=DEFENSIVE_PROSE, text=DEFENSIVE_PROSE, schema=None, valid=True, input_text="")
@@ -142,8 +145,23 @@ class TestWeightOverrides:
         assert struct_ctx.score == 1.0
 
     def test_documented_default_weights(self):
-        assert PROSE_WEIGHTS == {"plainness": 0.5, "concision": 0.3, "preservation": 0.2}
+        assert PROSE_WEIGHTS == {"plainness": 0.35, "confidence": 0.3, "concision": 0.2, "preservation": 0.15}
         assert STRUCTURED_WEIGHTS == {"completeness": 0.3, "format": 0.25, "grounding": 0.25, "plainness": 0.2}
+
+    async def test_confidence_punishes_ungrounded_hedging(self, make_ctx, settings):
+        """防御性写作实测样例：原检测器给它满分，现在必须扣分。"""
+        defensive = "这或许只能被视为探索性证据，并不意味着该方法在任何场景下都有效，需谨慎解读。"
+        ctx = make_ctx(raw_output=defensive, text=defensive, schema=None, valid=True, input_text="")
+        await RulesStep(rules_config(), settings).run(ctx)
+        assert ctx.dimensions["confidence"] < 1.0
+        assert ctx.dimensions["plainness"] < 1.0
+
+    async def test_real_research_boundary_is_not_punished(self, make_ctx, settings):
+        """另一侧失明：真实边界不该被当成防御冗余，也不该被 confidence 误伤。"""
+        boundary = "受制于 2023 年的算力条件，本结论仅在 3 个数据集上得到验证。"
+        ctx = make_ctx(raw_output=boundary, text=boundary, schema=None, valid=True, input_text=boundary)
+        await RulesStep(rules_config(), settings).run(ctx)
+        assert ctx.dimensions["confidence"] == 1.0
 
 
 class TestStructuralHelpers:

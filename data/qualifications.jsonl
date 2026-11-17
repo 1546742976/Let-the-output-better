@@ -1,0 +1,14 @@
+{"id": "q01", "sentence": "这或许只能被视为探索性证据，需谨慎解读。", "source": null, "expect": "ungrounded", "why": "降级模板，句内没有任何可核对对象"}
+{"id": "q02", "sentence": "这些结果并不意味着该方法在任何场景下都有效。", "source": "本方法在 ImageNet 与 CIFAR-10 上验证。", "expect": "ungrounded", "why": "自我否定模板且无指称"}
+{"id": "q03", "sentence": "该结论仅适用于横截面数据。", "source": "本实验在 2023 年预算内使用了横截面数据。", "expect": "boundary", "why": "领域名词可在原文定位，是真实适用范围"}
+{"id": "q04", "sentence": "本结论仅在 3 个数据集上得到验证。", "source": "样本覆盖 3 个数据集（ImageNet、CIFAR-10、COCO）。", "expect": "boundary", "why": "单位数指称 3 可核对（numeric_tokens 会丢它，这里不能丢）"}
+{"id": "q05", "sentence": "本结论仅在 3 个数据集上得到验证。", "source": null, "expect": "unverified", "why": "无原文时保守当边界保留"}
+{"id": "q06", "sentence": "受制于 2023 年的算力条件，评测规模限于 5 万样本。", "source": "项目可用算力为 2023 年采购的 8 卡集群，评测使用 5 万样本。", "expect": "boundary", "why": "限制标记加两个可核对数字"}
+{"id": "q07", "sentence": "This may only be regarded as preliminary evidence.", "source": null, "expect": "ungrounded", "why": "英文降级模板；This 是句首大写普通词，不得当标识符指称"}
+{"id": "q08", "sentence": "The effect holds on CIFAR-10, though it may not generalize.", "source": "我们在 CIFAR-10 上重复了实验。", "expect": "boundary", "why": "标识符指称可核对，后半句的犹豫不改变这一点"}
+{"id": "q09", "sentence": "本方法可能在一定程度上优于基线。", "source": "基线对比见实验章节。", "expect": "ungrounded", "why": "hedge 堆叠且无数字无实体，属于可安全删除的弱化"}
+{"id": "q10", "sentence": "在两个场景下都可能有效，不排除更广的适用性。", "source": "覆盖推荐与图像分类两个场景。", "expect": "ungrounded", "why": "场景是泛词，不作为强指称；即便原文提到也仍是太极话"}
+{"id": "q11", "sentence": "实验将误差降低 12.5%。", "source": "误差由 8.4% 降至 7.15%。", "expect": null, "why": "主张句，不是限定语"}
+{"id": "q12", "sentence": "值得注意的是，现有样本量不足以支撑该结论。", "source": "共招募 24 名被试。", "expect": "boundary", "why": "开场套话可删，但样本量边界可核对必须留"}
+{"id": "q13", "sentence": "该结论尚不明确，有待进一步验证。", "source": "论文未给出该指标的测量方法。", "expect": "ungrounded", "why": "无指称的空转限定"}
+{"id": "q14", "sentence": "本方法仅在 ResNet-50 上测试过。", "source": "骨干网络统一使用 ResNet-50。", "expect": "boundary", "why": "标识符指称可核对，划定了结论边界"}
