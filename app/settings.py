@@ -40,8 +40,10 @@ class Settings(BaseSettings):
     fail_open: bool = Field(default=True, alias="OPTIMIZE_FAIL_OPEN")
     audit_path: str = Field(default="data/audit.jsonl", alias="AUDIT_PATH")
 
-    # harness 驱动属实验面，默认关闭；命令只能来自这里，绝不进 config/pipeline.yaml。
-    harness_enabled: bool = Field(default=False, alias="HARNESS_ENABLED")
+    # harness 驱动默认开启：任务的主路径是"先让 harness 生成，再优化其输出"。
+    # 开启不等于可执行——命令/参数仍只能来自这里，未配置任何 harness 成员时
+    # build_harness 返回 None，/v1/run 直接 503 并指回 /v1/optimize。
+    harness_enabled: bool = Field(default=True, alias="HARNESS_ENABLED")
     harness_command: str = Field(default="", alias="HARNESS_COMMAND")
     harness_args: list[str] = Field(default_factory=list, alias="HARNESS_ARGS")
     harness_allowed_commands: list[str] = Field(default_factory=list, alias="HARNESS_ALLOWED_COMMANDS")

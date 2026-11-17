@@ -36,7 +36,7 @@ const DIMENSION_LABELS = {
 // 留痕尾部的分组：分值只说明"不好读"，标签才指出哪句是废话、哪句是真边界。
 const REASON_TAGS = { 命中: "hit", 删除无据: "cut", 保留边界: "keep" };
 
-const state = { config: null, items: [], selectedLine: null, harnessNotes: {} };
+const state = { config: null, items: [], selectedLine: null, harnessNotes: {}, modeChosen: false };
 
 const $ = (id) => document.getElementById(id);
 
@@ -601,8 +601,7 @@ function renderHarnessEntry() {
 
   // 驱动不可用时把原因写清楚，而不是留个禁用按钮让人猜。
   if (!info.enabled) {
-    $("harness-status").textContent =
-      "驱动未启用：在 .env 设 HARNESS_ENABLED=true 后重启服务（可用 HARNESS_PROVIDERS 限定 profile）";
+    $("harness-status").textContent = "驱动被显式关闭：HARNESS_ENABLED=false（代码默认为 true）";
   } else if (!available) {
     $("harness-status").textContent = "已启用但没有可驱动的 profile：查看下方检测结果，或配置 OPENAI_API_KEY";
   } else {
@@ -613,6 +612,8 @@ function renderHarnessEntry() {
   $("mode-hint").textContent = harness && !available ? "harness 驱动当前不可用" : MODE_HINTS[currentMode()];
   $("run-btn").textContent = harness ? "驱动 harness 并优化" : "运行优化";
   $("run-btn").disabled = harness && !available;
+  // 任务的主路径是"harness 生成 → 优化"：驱动可用就默认停在这边，除非用户已手动切换。
+  if (!state.modeChosen && available && currentMode() !== "harness") setMode("harness");
 }
 
 function focusInput() {
@@ -620,7 +621,8 @@ function focusInput() {
   if (!target.disabled) target.focus();
 }
 
-function setMode(mode) {
+function setMode(mode, byUser) {
+  if (byUser) state.modeChosen = true;
   $("optimize-form").dataset.mode = mode;
   $("mode-paste").classList.toggle("on", mode === "paste");
   $("mode-harness").classList.toggle("on", mode === "harness");
@@ -788,8 +790,8 @@ async function init() {
   });
   $("new-run").addEventListener("click", resetRun);
   $("optimize-form").addEventListener("submit", dispatchRun);
-  $("mode-paste").addEventListener("click", () => setMode("paste"));
-  $("mode-harness").addEventListener("click", () => setMode("harness"));
+  $("mode-paste").addEventListener("click", () => setMode("paste", true));
+  $("mode-harness").addEventListener("click", () => setMode("harness", true));
   $("theme-toggle").addEventListener("click", toggleTheme);
   $("harness-detect-btn").addEventListener("click", () => loadHarnesses(true));
   $("field-harness").addEventListener("change", renderProfileNotes);
