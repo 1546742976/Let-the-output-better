@@ -4,7 +4,7 @@
 
 在任意大模型生成完成之后，对输出执行校验、评分、修复、格式化与拟人化重写，在不修改模型、不介入推理过程的前提下，持续提升科研场景输出的结构合规性、内容准确性、事实可溯源性与表达自然度。
 
-> **项目状态：设计完成，v0.2 实现进行中。** 当前仓库包含完整设计文档与评估方案，代码正在落地；下文“快速开始”“使用指南”为 v0.2 交付后的预期用法。
+> **项目状态：v0.2 已实现。** 仓库包含设计文档、可执行代码与评估方案，下文“快速开始”“使用指南”即为当前可用用法；mock 模式实测数字见 [§9 效果评估](#9-效果评估)。
 
 **效果一览**
 
@@ -141,7 +141,7 @@ class BaseStep:
 
 ## 6. 快速开始
 
-> 以下命令为 v0.2 交付后的预期用法，代码落地前暂不可执行。
+> 以下命令均已实测。若在 Windows 上遇到 `10013 / 访问权限不允许`，通常是 8000 端口被系统保留，用 `netsh int ipv4 show excludedportrange protocol=tcp` 查询后换一个端口即可。
 
 ### 6.1 环境要求
 
@@ -169,8 +169,8 @@ pydantic>=2.8,<3.0
 pydantic-settings>=2.4,<3.0
 httpx>=0.27,<1.0
 PyYAML>=6.0,<7.0
-pytest>=8.0,<9.0
-pytest-asyncio>=0.23,<1.0
+pytest>=9.0.3,<10.0
+pytest-asyncio>=1.5,<2.0
 pytest-cov>=6.0,<7.0
 respx>=0.21,<1.0
 ```
@@ -191,6 +191,13 @@ curl -s -X POST localhost:8000/v1/optimize -H "content-type: application/json" -
 ```
 
 mock 模式下，第二条命令应稳定返回 `valid` 与 `score` 字段，全过程不产生网络请求。
+
+> **Windows 提示**：`curl.exe` 会把命令行参数按本地 ANSI 代码页重新编码，含中文的 `-d` 内联请求体到达服务端时已不是 UTF-8，会返回 `There was an error parsing the body`。把请求体放进 UTF-8 文件并用 `--data-binary @文件` 发送即可：
+>
+> ```bash
+> curl -s --data-binary @data/request.example.json -H "content-type: application/json; charset=utf-8" \
+>   -X POST localhost:8000/v1/optimize
+> ```
 
 ### 6.4 接入真实模型
 
@@ -322,6 +329,8 @@ class CcfVenueStep(BaseStep):
 | `OPTIMIZE_FAIL_OPEN` | `true` | 异常时是否回退原始输出 |
 | `AUDIT_PATH` | `data/audit.jsonl` | 审计文件路径 |
 
+> 变量名即表中形式（大小写不敏感）。注意 `OPTIMIZE_*` 属于管线阈值，会被 `config/pipeline.yaml` 中的同名顶层键覆盖——例如仓库自带的 `fail_open: true` 优先于 `.env` 里的 `OPTIMIZE_FAIL_OPEN=false`，需要严格模式时请同时改 `pipeline.yaml`。
+
 ### 8.2 管线编排
 
 ```yaml
@@ -382,7 +391,29 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 | 额外延迟 P95 | 管线耗时分位数 | 不修复时 300ms 内，修复时 8s 内 |
 | Fail-open 率 | 降级次数 / 请求总数 | 低于 1% |
 
-报告输出为 Markdown，同时生成同名 CSV 供绘图使用。表中均为设计目标值，实测报告将随 v0.2 实现发布于 `data/reports/`。
+报告输出为 Markdown，同时生成同名 CSV 供绘图使用。两者含逐条耗时，每次运行字节级不同，因此作为本地产物不入库（已在 `.gitignore` 中排除），关键结果摘录如下表。
+
+#### mock 模式实测结果
+
+`python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out data/reports/mock.md`（12 条样本，未调用任何模型，结果与运行环境无关）：
+
+| 指标 | 目标 | 实测 | 达标 |
+| ------ | ------ | ------ | ------ |
+| Schema 合规率 | 提升 20pp 以上 | 41.7% → 83.3%（+41.7pp） | 是 |
+| 关键字段准确率 | 不低于 90% | 100%（10 条含断言） | 是 |
+| 引用格式合规率 | 不低于 95% | 100%（3/3） | 是 |
+| 事实保持率 | 100% | 100%（5 条变更样本） | 是 |
+| 平均分变化 | 提升 0.1 以上 | +0.005 | 否 |
+| 修复成功率 | 不低于 50% | 33.3%（1/3） | 否 |
+| 额外延迟 P95 | 不修复 300ms 内 | 0ms | 是 |
+| Fail-open 率 | 低于 1% | 0.0% | 是 |
+
+两项未达标均为口径所致，已在报告中注明：
+
+- **平均分变化**：优化前的“原始输出”一旦可解析，即已享受与优化后相同的 Schema 类型归一，因此同一评分口径下分差有限；收益体现在合规率与引用格式，而非分数本身。
+- **修复成功率**：mock provider 按设计不会补造缺失事实，其修复候选在仍不合规时被闸门拒绝（这正是闸门应有的行为）。接入真实模型后需以 `--live` 复测。
+
+“优化前”判据为：对 `raw_output` 直接 `json.loads` 并按严格类型校验，即下游程序不经任何处理能否直接消费。
 
 ## 10. 可靠性设计
 
@@ -406,30 +437,37 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 .
 ├── app/
 │   ├── main.py                  # FastAPI 入口：/v1/optimize、/healthz
-│   ├── settings.py              # 基于 pydantic-settings 的配置加载
+│   ├── settings.py              # 配置加载：.env 与 pipeline.yaml（含优先级合并）
 │   ├── schemas.py               # 学术场景 Pydantic 模型：paper / reference / experiment
+│   ├── textio.py                # 围栏剥离、JSON 抽取、空白归一、提示词加载
+│   ├── audit.py                 # JSONL 审计
 │   ├── optimizer/
 │   │   ├── __init__.py          # optimize() 对外入口
 │   │   ├── pipeline.py          # 编排、超时、fail-open、采纳判定
 │   │   ├── context.py           # 步骤上下文
-│   │   └── steps/               # schema / rules / repair / format / humanize
-│   ├── providers/
-│   │   ├── base.py              # Provider 统一接口
-│   │   ├── openai_compatible.py # OpenAI 兼容适配器
-│   │   └── mock.py              # 离线与测试用
-│   └── audit.py                 # JSONL 审计
+│   │   ├── scoring.py           # 候选文本重评分，供采纳闸门比较
+│   │   └── steps/
+│   │       ├── base.py          # StepResult / BaseStep / 步骤注册表
+│   │       ├── schema.py  rules.py  repair.py  format.py  humanize.py
+│   │       └── references.py    # 参考文献解析与 GB/T 7714 / APA 渲染
+│   └── providers/
+│       ├── base.py              # Provider 统一接口
+│       ├── openai_compatible.py # OpenAI 兼容适配器
+│       └── mock.py              # 离线与测试用
 ├── config/pipeline.yaml
 ├── prompts/
 │   ├── repair.txt
 │   └── humanize.txt
 ├── data/
-│   ├── golden.jsonl
-│   └── reports/
+│   ├── golden.jsonl             # 金标集（12 条，预存 raw_output）
+│   ├── request.example.json     # HTTP 请求样例，供 curl --data-binary 使用
+│   └── reports/                 # 评估报告（Markdown + 同名 CSV）
 ├── scripts/
 │   ├── demo.py
 │   └── evaluate.py
-├── tests/
+├── tests/                       # 含 golden_baseline.json 回归快照
 ├── .env.example
+├── pytest.ini
 ├── requirements.txt
 ├── LICENSE
 └── README.md
@@ -448,13 +486,15 @@ pytest --cov=app --cov-report=term-missing
 - Provider 单测：使用 `respx` 模拟 `/chat/completions`，覆盖成功、限流与超时。
 - 管线单测：异常注入验证 fail-open 与超时行为。
 - 拟人化单测：以 mock 重写结果断言数值、引用与关键字段在重写前后不变。
-- 回归测试：以金标集的 `final_output` 作为基线快照。
+- 回归测试：以金标集的 `final_output` 作为基线快照（`tests/golden_baseline.json`，`OPTIMIZE_UPDATE_GOLDEN=1 pytest` 可重写）。
+
+v0.2 实测：178 项用例通过，`app/` 语句覆盖率 95%；除 `tests/test_providers.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。
 
 ## 14. 版本规划
 
 | 版本 | 范围 | 状态 |
 | ------ | ------ | ------ |
-| v0.2 | 核心管线（含拟人化重写）、学术场景 Schema、OpenAI 兼容 Provider、审计与评估 | 设计完成，实现中 |
+| v0.2 | 核心管线（含拟人化重写）、学术场景 Schema、OpenAI 兼容 Provider、审计与评估 | 已交付 |
 | v0.3 | 新增 Anthropic、Gemini、OpenRouter 适配器 | 规划中 |
 | v0.4 | 可选 LLM 评分维度（含自然度）、多候选输出重排 | 规划中 |
 | v0.5 | 基于审计数据的阈值调优与漂移检测 | 规划中 |
