@@ -311,6 +311,27 @@ body {
   text-align: right;
 }
 
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid #4a3c1d;
+  border-radius: 999px;
+  font: 600 10px var(--mono);
+  color: var(--warn);
+  vertical-align: middle;
+}
+
+.panel-harness {
+  border-left: 2px solid #2d3a52;
+}
+
+textarea:disabled,
+input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* ---------- form ---------- */
 
 .field {

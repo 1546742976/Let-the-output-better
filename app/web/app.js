@@ -211,6 +211,7 @@ function renderHistory() {
       record.score === null || record.score === undefined ? "-" : Number(record.score).toFixed(3);
     node.querySelector('[data-role="preview"]').textContent = previewOf(record);
     const flags = flagsOf(record);
+    if (record.harness) flags.unshift(`驱动:${record.harness.name}`);
     node.querySelector('[data-role="meta"]').textContent = [
       `${timeAgo(record.ts)} · ${record.ms ?? "-"}ms · ${record.provider || "-"}`,
       ...flags,
@@ -304,6 +305,12 @@ function renderResult(record) {
   verdict.appendChild(chip("tokens", `${usage.prompt_tokens ?? 0} / ${usage.completion_tokens ?? 0}`));
   if (record.ms !== undefined && record.ms !== null) verdict.appendChild(chip("耗时", `${record.ms} ms`));
   verdict.appendChild(chip("Schema", (record.schema || "text").toLowerCase()));
+  if (record.harness) {
+    const info = record.harness;
+    verdict.appendChild(
+      chip("harness", `${info.name} · ${info.ms}ms · ${info.source}${info.truncated ? " · 已截断" : ""}`)
+    );
+  }
 
   renderSteps(record.steps || []);
   renderDimensions(record.dimensions);
@@ -480,7 +487,7 @@ function setStatus(message, isError) {
   node.classList.toggle("error", Boolean(isError));
 }
 
-function collectPayload() {
+function collectOptions() {
   const options = {};
   document.querySelectorAll('#options input[type="checkbox"]').forEach((input) => {
     options[input.dataset.key] = input.checked;
@@ -488,13 +495,26 @@ function collectPayload() {
   const timeoutRaw = $("field-timeout") ? $("field-timeout").value : "";
   const timeout = Number(timeoutRaw);
   if (timeoutRaw !== "" && Number.isFinite(timeout)) options.timeout_ms = Math.round(timeout);
+  return options;
+}
+
+function collectPayload() {
   return {
     raw_output: $("field-raw").value,
     schema: $("field-schema").value || null,
     instruction: $("field-instruction").value,
     input_text: $("field-input-text").value,
-    options,
+    options: collectOptions(),
   };
+}
+
+function applyOptimizeResponse(response, fallbackRawOutput) {
+  const record = recordById(response.request_id) || synthesizeRecord(response, fallbackRawOutput);
+  state.selectedLine = record.line_no ?? null;
+  renderResult(record);
+  renderDiff(record);
+  renderHistory();
+  return record;
 }
 
 async function submitRun(event) {
@@ -506,16 +526,60 @@ async function submitRun(event) {
   try {
     const response = await postJSON("/v1/optimize", payload);
     await loadHistory();
-    const record = recordById(response.request_id) || synthesizeRecord(response, payload.raw_output);
-    state.selectedLine = record.line_no ?? null;
-    renderResult(record);
-    renderDiff(record);
-    renderHistory();
+    const record = applyOptimizeResponse(response, payload.raw_output);
     setStatus(`完成 · ${record.request_id}`);
   } catch (error) {
     setStatus(`失败：${error.message}`, true);
   } finally {
     button.disabled = false;
+  }
+}
+
+function renderHarnessEntry() {
+  const info = (state.config && state.config.harness) || { enabled: false };
+  const button = $("harness-run-btn");
+  const task = $("field-task");
+  button.disabled = !info.enabled;
+  task.disabled = !info.enabled;
+  $("harness-hint").textContent = info.enabled
+    ? `已启用 ${info.name} · 超时 ${info.timeout_ms}ms · 并发上限 ${info.max_concurrency}`
+    : "未启用：在 .env 设 HARNESS_ENABLED=true 并把命令绝对路径加入 HARNESS_ALLOWED_COMMANDS 后重启服务";
+  if (!info.enabled) {
+    task.placeholder = "harness 驱动默认关闭；已有输出请用下方「输入」区直接优化";
+  }
+}
+
+async function submitHarness() {
+  const button = $("harness-run-btn");
+  const statusNode = $("harness-status");
+  const task = $("field-task").value;
+  if (!task.trim()) {
+    statusNode.textContent = "请先填写 task";
+    statusNode.classList.add("error");
+    return;
+  }
+  button.disabled = true;
+  statusNode.classList.remove("error");
+  statusNode.textContent = "harness 运行中…";
+  const payload = {
+    task,
+    schema: $("field-schema").value || null,
+    instruction: $("field-instruction").value,
+    input_text: $("field-input-text").value,
+    options: collectOptions(),
+  };
+  try {
+    const response = await postJSON("/v1/run", payload);
+    await loadHistory();
+    const record = applyOptimizeResponse(response, "");
+    const info = response.harness || {};
+    statusNode.textContent = `完成 · ${record.request_id} · harness ${info.ms ?? "-"}ms`;
+    $("form-status").textContent = "";
+  } catch (error) {
+    statusNode.textContent = `失败：${error.message}`;
+    statusNode.classList.add("error");
+  } finally {
+    renderHarnessEntry();
   }
 }
 
@@ -544,6 +608,7 @@ async function init() {
   });
   $("new-run").addEventListener("click", resetRun);
   $("optimize-form").addEventListener("submit", submitRun);
+  $("harness-run-btn").addEventListener("click", submitHarness);
 
   try {
     state.config = await getJSON("/v1/config");
@@ -554,6 +619,7 @@ async function init() {
   renderSchemaOptions();
   renderOptionToggles();
   renderEnv();
+  renderHarnessEntry();
   resetRun();
   await loadHistory();
   await refreshHealth();

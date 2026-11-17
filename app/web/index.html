@@ -29,10 +29,25 @@
           <div class="work-head-note">模型生成结束后再校验、评分、修复、格式化与重写</div>
         </header>
 
+        <section class="panel panel-harness" id="harness-panel" aria-label="驱动 harness">
+          <div class="panel-head">
+            <h2>驱动 harness <span class="badge">实验面</span></h2>
+            <span class="panel-hint" id="harness-hint"></span>
+          </div>
+          <label class="field">
+            <span class="field-label">task · 交给 harness 的任务（经 stdin 传给服务端白名单命令；请求体无法指定命令）</span>
+            <textarea id="field-task" rows="3" spellcheck="false" placeholder="例如：总结这篇论文的方法与结论"></textarea>
+          </label>
+          <div class="submit-row">
+            <button type="button" class="primary" id="harness-run-btn">运行 harness + 二次优化</button>
+            <span class="status-line" id="harness-status"></span>
+          </div>
+        </section>
+
         <section class="panel" aria-label="输入">
           <div class="panel-head">
             <h2>输入</h2>
-            <span class="panel-hint">raw_output 为待优化的模型输出原文</span>
+            <span class="panel-hint">raw_output 为 harness 或模型已经产出的原文</span>
           </div>
           <form class="form" id="optimize-form">
             <div class="field-row">
