@@ -6,6 +6,15 @@
 
 const MAX_DIFF_LINES = 400;
 
+const MODE_HINTS = {
+  paste: "粘贴 harness 或模型已经产出的原文",
+  harness: "按内置 profile 白名单驱动，任务经 stdin 传入，参数不可由请求体指定",
+};
+
+const PROFILE_FALLBACK_NOTES = {
+  command: "显式命令模式：命令与参数来自服务端 .env，不经自动发现",
+};
+
 const OPTION_FIELDS = [
   { key: "rules", label: "评分 rules", step: "rules" },
   { key: "repair", label: "修复 repair", step: "repair" },
@@ -280,35 +289,43 @@ function synthesizeRecord(response, rawOutput) {
   };
 }
 
-function chip(label, value) {
-  const node = el("span", "chip");
-  node.appendChild(el("span", null, `${label}：`));
-  node.appendChild(el("b", null, value));
-  return node;
+function pill(label, value) {
+  return el("span", "pill", `${label}：${value}`);
+}
+
+function echoOf(record) {
+  const text = String(record.raw_output ?? record.instruction ?? "").replace(/\s+/g, " ").trim();
+  return text.length ? text.slice(0, 240) : "（空）";
 }
 
 function renderResult(record) {
   const panel = $("result-panel");
   panel.hidden = false;
   setText("result-id", record.request_id);
+  setText("echo-input", echoOf(record));
   const status = statusOf(record);
 
+  // 结论行只放"状态 + 分数"，其余指标降到详情区，主区因此保持安静。
   const verdict = $("verdict");
   clear(verdict);
-  const statusChip = chip("状态", status.label);
-  statusChip.classList.add(status.cls);
-  verdict.appendChild(statusChip);
-  verdict.appendChild(chip("score", record.score === null || record.score === undefined ? "-" : Number(record.score).toFixed(3)));
-  verdict.appendChild(chip("repaired", String(Boolean(record.repaired))));
-  verdict.appendChild(chip("degraded", String(Boolean(record.degraded))));
+  const state = el("span", `state ${status.cls}`, status.label);
+  verdict.appendChild(state);
+  verdict.appendChild(
+    el("span", "bigscore", record.score === null || record.score === undefined ? "-" : Number(record.score).toFixed(3))
+  );
+
+  const meta = $("meta-chips");
+  clear(meta);
+  meta.appendChild(pill("repaired", String(Boolean(record.repaired))));
+  meta.appendChild(pill("degraded", String(Boolean(record.degraded))));
   const usage = record.usage || {};
-  verdict.appendChild(chip("tokens", `${usage.prompt_tokens ?? 0} / ${usage.completion_tokens ?? 0}`));
-  if (record.ms !== undefined && record.ms !== null) verdict.appendChild(chip("耗时", `${record.ms} ms`));
-  verdict.appendChild(chip("Schema", (record.schema || "text").toLowerCase()));
+  meta.appendChild(pill("tokens", `${usage.prompt_tokens ?? 0} / ${usage.completion_tokens ?? 0}`));
+  if (record.ms !== undefined && record.ms !== null) meta.appendChild(pill("耗时", `${record.ms} ms`));
+  meta.appendChild(pill("Schema", (record.schema || "text").toLowerCase()));
   if (record.harness) {
     const info = record.harness;
-    verdict.appendChild(
-      chip("harness", `${info.name} · ${info.ms}ms · ${info.source}${info.truncated ? " · 已截断" : ""}`)
+    meta.appendChild(
+      pill("harness", `${info.name} · ${info.ms}ms · ${info.source}${info.truncated ? " · 已截断" : ""}`)
     );
   }
 
@@ -539,22 +556,65 @@ function harnessInfo() {
   return (state.config && state.config.harness) || { enabled: false, options: [], name: null, timeout_ms: 0 };
 }
 
+function currentMode() {
+  return $("optimize-form").dataset.mode || "paste";
+}
+
+function harnessAvailable() {
+  const info = harnessInfo();
+  return Boolean(info.enabled && (info.options || []).length);
+}
+
 function renderHarnessEntry() {
   const info = harnessInfo();
-  const button = $("harness-run-btn");
-  const task = $("field-task");
-  const options = info.options || [];
-  button.disabled = !info.enabled || !options.length;
-  task.disabled = button.disabled;
+  const available = harnessAvailable();
+  $("mode-harness").disabled = !available;
+  $("field-task").disabled = !available;
+
+  // 驱动不可用时把原因写清楚，而不是留个禁用按钮让人猜。
   if (!info.enabled) {
-    $("harness-hint").textContent =
-      "未启用：在 .env 设 HARNESS_ENABLED=true 后重启服务（可选 HARNESS_PROVIDERS 限定 profile）";
-  } else if (!options.length) {
-    $("harness-hint").textContent = "已启用但没有可驱动的 harness：检查下方检测结果或 API 密钥";
+    $("harness-status").textContent =
+      "驱动未启用：在 .env 设 HARNESS_ENABLED=true 后重启服务（可用 HARNESS_PROVIDERS 限定 profile）";
+  } else if (!available) {
+    $("harness-status").textContent = "已启用但没有可驱动的 profile：查看下方检测结果，或配置 OPENAI_API_KEY";
   } else {
-    $("harness-hint").textContent =
-      `已装配 ${options.length} 个 profile（默认 ${info.name}）· 超时 ${info.timeout_ms}ms · 并发上限 ${info.max_concurrency}`;
+    $("harness-status").textContent = "";
   }
+
+  const harness = currentMode() === "harness";
+  $("mode-hint").textContent = harness && !available ? "harness 驱动当前不可用" : MODE_HINTS[currentMode()];
+  $("run-btn").textContent = harness ? "驱动 harness 并优化" : "运行优化";
+  $("run-btn").disabled = harness && !available;
+}
+
+function focusInput() {
+  const target = currentMode() === "harness" ? $("field-task") : $("field-raw");
+  if (!target.disabled) target.focus();
+}
+
+function setMode(mode) {
+  $("optimize-form").dataset.mode = mode;
+  $("mode-paste").classList.toggle("on", mode === "paste");
+  $("mode-harness").classList.toggle("on", mode === "harness");
+  renderHarnessEntry();
+}
+
+function renderThemeButton() {
+  const dark = document.documentElement.dataset.theme === "dark";
+  const button = $("theme-toggle");
+  button.textContent = dark ? "浅色" : "深色";
+  button.setAttribute("aria-pressed", String(dark));
+}
+
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try {
+    window.localStorage.setItem("optimize-theme", next);
+  } catch (error) {
+    // 禁用存储的浏览器下仍要让切换可用，只是不记忆选择。
+  }
+  renderThemeButton();
 }
 
 function renderHarnessOptions(options) {
@@ -611,7 +671,7 @@ function renderProfileNotes() {
   const node = $("harness-notes");
   const selected = $("field-harness").value;
   const notes = (state.harnessNotes && state.harnessNotes[selected]) || [];
-  node.textContent = notes.length ? notes.join("；") : "";
+  node.textContent = notes.length ? notes.join("；") : PROFILE_FALLBACK_NOTES[selected] || "";
 }
 
 async function loadHarnesses(probe) {
@@ -635,17 +695,15 @@ async function loadHarnesses(probe) {
 }
 
 async function submitHarness() {
-  const button = $("harness-run-btn");
-  const statusNode = $("harness-status");
+  const button = $("run-btn");
   const task = $("field-task").value;
   if (!task.trim()) {
-    statusNode.textContent = "请先填写 task";
-    statusNode.classList.add("error");
+    setStatus("请先填写 task", true);
     return;
   }
   button.disabled = true;
-  statusNode.classList.remove("error");
-  statusNode.textContent = "harness 运行中…";
+  $("harness-status").textContent = "";
+  setStatus("harness 运行中…");
   const payload = {
     task,
     harness: $("field-harness").value || null,
@@ -659,29 +717,37 @@ async function submitHarness() {
     await loadHistory();
     const record = applyOptimizeResponse(response, "");
     const info = response.harness || {};
-    statusNode.textContent = `完成 · ${record.request_id} · harness ${info.ms ?? "-"}ms`;
-    $("form-status").textContent = "";
+    setStatus(`完成 · ${record.request_id} · harness ${info.ms ?? "-"}ms`);
   } catch (error) {
-    statusNode.textContent = `失败：${error.message}`;
-    statusNode.classList.add("error");
+    setStatus(`失败：${error.message}`, true);
   } finally {
     renderHarnessEntry();
   }
 }
 
+function dispatchRun(event) {
+  event.preventDefault();
+  if (currentMode() === "harness") {
+    return submitHarness();
+  }
+  return submitRun(event);
+}
+
 function resetRun() {
   state.selectedLine = null;
   $("field-raw").value = "";
+  $("field-task").value = "";
   $("field-instruction").value = "";
   $("field-input-text").value = "";
   $("field-schema").value = "";
+  setText("echo-input", "");
   $("result-panel").hidden = true;
   clear($("diff"));
   $("diff").appendChild(el("div", "diff-note", "运行优化后在此对照。"));
   setText("diff-mode", "");
   setStatus("");
   renderHistory();
-  $("field-raw").focus();
+  focusInput();
 }
 
 /* ---------- 启动 ---------- */
@@ -693,8 +759,10 @@ async function init() {
     event.currentTarget.setAttribute("aria-expanded", String(!app.classList.contains("collapsed")));
   });
   $("new-run").addEventListener("click", resetRun);
-  $("optimize-form").addEventListener("submit", submitRun);
-  $("harness-run-btn").addEventListener("click", submitHarness);
+  $("optimize-form").addEventListener("submit", dispatchRun);
+  $("mode-paste").addEventListener("click", () => setMode("paste"));
+  $("mode-harness").addEventListener("click", () => setMode("harness"));
+  $("theme-toggle").addEventListener("click", toggleTheme);
   $("harness-detect-btn").addEventListener("click", () => loadHarnesses(true));
   $("field-harness").addEventListener("change", renderProfileNotes);
 
@@ -707,8 +775,10 @@ async function init() {
   renderSchemaOptions();
   renderOptionToggles();
   renderEnv();
-  renderHarnessEntry();
+  renderThemeButton();
   renderHarnessOptions();
+  // setMode 会顺带刷新模式提示、按钮文案与 harness 可用性判断。
+  setMode("paste");
   resetRun();
   await loadHistory();
   await refreshHealth();
