@@ -1,7 +1,9 @@
 """标注集回归：限定语判定的唯一抓手。
 
-`data/qualifications.jsonl` 由本轮起草、待用户审改；在此之前这些期望值代表的是
-我的判断，不是外部事实。改动词表或判定规则时必须先跑这里。
+`data/qualifications.jsonl` 起草后做过一轮自审改：查出"裸数字被当成范围证据"这一
+系统性误判（撤回句、降级句、泛词计数句都会混进受保护边界），判定规则已收紧并补了
+对应标注。但审改与分类器仍出自同一作者，这些期望值代表我的判断，不是外部事实；
+真实语料复核之前，本文件只能防回归。改动词表或判定规则时必须先跑这里。
 """
 
 from __future__ import annotations
@@ -89,6 +91,23 @@ def test_english_stop_words_are_not_referents():
 def test_single_digit_referent_is_kept():
     """rules.numeric_tokens 会丢弃单位数；这里必须保留，否则边界判定失效。"""
     assert "3" in referents("本结论仅在 3 个数据集上得到验证。")
+
+
+def test_a_bare_number_does_not_establish_a_scope():
+    """审改查出的三处误判：句里有数字不等于在划定研究边界。"""
+    source = normalize_text("本文报告 Top-1 准确率提升 12.5%，实验覆盖推荐与图像分类 2 个场景。")
+    for sentence in (
+        "这并不意味着 12.5% 的提升可以推广到临床。",  # 数字是被撤回的对象
+        "或许只能被视为探索性证据，12.5% 的收益不应过度解读。",  # 数字是被引用的原文结论
+        "该方法可能在 2 个场景下有效。",  # 数字配泛词，仍是太极话
+    ):
+        assert classify_qualification(sentence, source) == "ungrounded", sentence
+    # 同一个数字，配上边界线索或领域名词就是真边界——收紧不该把这两类一起误杀
+    assert classify_qualification("本结论仅在 12.5% 的亚组里成立。", source) == "boundary"
+    assert (
+        classify_qualification("在 24 名被试上得到的结论可能不稳。", normalize_text("研究纳入 24 名被试。"))
+        == "boundary"
+    )
 
 
 def test_qualifications_payload_is_shaped_for_the_page():

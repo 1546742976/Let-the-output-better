@@ -441,11 +441,17 @@ def _in_source(token: str, source_norm: str) -> bool:
     return any(normalize_text(member) in source_norm for member in _scope_family(token))
 
 
+def _is_bare_number(token: str) -> bool:
+    return _REFERENT_NUMBER.fullmatch(token) is not None
+
+
 def classify_qualification(sentence: str, source_norm: str | None = None) -> str | None:
     """判定限定语性质：``ungrounded`` 该删、``boundary`` 该留、``unverified`` 无原文时按留处理。
 
-    依据是**有没有可核对的指称**，而不是有没有犹豫词："或许只能被视为探索性证据"
-    不指向任何东西；"仅在 3 个数据集上得到验证"里的 3 与数据集都能回原文核对。
+    依据是**有没有划定范围的指称**，既不是有没有犹豫词，也不是有没有数字：
+    "或许只能被视为探索性证据"不指向任何东西；"仅在 3 个数据集上得到验证"的 3 与数据集
+    都能回原文核对。裸数字本身不证明范围——"这并不意味着 12.5% 可推广"里的 12.5 是被
+    撤回的对象，"可能在 2 个场景下有效"里的 2 配的是泛词，两句都属该删的防御性写作。
     """
     markers = _qualification_markers(sentence)
     is_qualification = any(markers[group] for group in _QUALIFICATION_GROUPS) or markers["boundary_cue"]
@@ -455,10 +461,14 @@ def classify_qualification(sentence: str, source_norm: str | None = None) -> str
     if not refs:
         # 零指称：无论有没有原文都无据可依。
         return "ungrounded"
+    # 领域名词与标识符自己就划定范围；纯数字要在边界线索的语境里才算。
+    scoped = refs if markers["boundary_cue"] else [token for token in refs if not _is_bare_number(token)]
+    if not scoped:
+        return "ungrounded"
     if source_norm is None:
         # 没有原始材料就无从核对，保守当作研究边界保留。
         return "unverified"
-    if any(_in_source(token, source_norm) for token in refs):
+    if any(_in_source(token, source_norm) for token in scoped):
         return "boundary"
     return "ungrounded"
 
