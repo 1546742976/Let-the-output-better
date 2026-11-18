@@ -5,6 +5,10 @@
  */
 
 const MAX_DIFF_LINES = 400;
+const SVG_NS = "http://www.w3.org/2000/svg";
+const DIAL_RADIUS = 52;
+const DIAL_CIRCUMFERENCE = 2 * Math.PI * DIAL_RADIUS;
+const THEME_KEY = "output-better-theme";
 
 const OPTION_FIELDS = [
   { key: "rules", label: "评分 rules", step: "rules" },
@@ -20,7 +24,58 @@ const DIMENSION_LABELS = {
   grounding: "与输入一致性",
 };
 
-const state = { config: null, items: [], selectedLine: null, harnessNotes: {} };
+const PIPE_ORDER = ["schema", "rules", "repair", "format", "humanize"];
+const STEP_ICON = {
+  schema: "i-schema",
+  rules: "i-gauge",
+  repair: "i-build",
+  format: "i-format",
+  humanize: "i-sparkle",
+  simplify: "i-sparkle",
+};
+const STEP_HUE = {
+  schema: "--blue-bright",
+  rules: "--green-bright",
+  repair: "--yellow",
+  format: "--red-bright",
+  humanize: "--purple-bright",
+  simplify: "--orange",
+};
+const STEP_OPTION = { schema: "strict", rules: "rules", repair: "repair", format: "format", humanize: "humanize" };
+const SORTS = [
+  { key: "new", label: "最新优先" },
+  { key: "old", label: "最早优先" },
+  { key: "score", label: "分数优先" },
+];
+
+const SAMPLE = {
+  schema: "paper",
+  instruction: "抽取论文元数据，参考文献按 GB/T 7714 规范",
+  input_text:
+    "《基于深度学习的图像分类方法研究》，张三、李四，发表于 CVPR 2023。关键词：深度学习；图像分类；卷积神经网络。" +
+    "参考文献：Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023.",
+  raw_output:
+    '{"title":"基于深度学习的图像分类方法研究","authors":"张三、李四","year":"2023",' +
+    '"keywords":"深度学习;图像分类;卷积神经网络","reference":"Zhang San, Li Si. Research on image classification ' +
+    'based on deep learning. CVPR 2023.","note":"如需更多论文信息请随时告诉我"}',
+};
+
+const state = {
+  config: null,
+  items: [],
+  selectedLine: null,
+  harnessNotes: {},
+  auditTotal: 0,
+  query: "",
+  sort: "new",
+  currentRecord: null,
+  diffRecord: null,
+  diffRows: [],
+  diffDegraded: false,
+  diffNote: "",
+  diffView: "unified",
+  undoSnapshot: null,
+};
 
 const $ = (id) => document.getElementById(id);
 
@@ -29,6 +84,17 @@ function el(tag, className, text) {
   if (className) node.className = className;
   if (text !== undefined && text !== null) node.textContent = String(text);
   return node;
+}
+
+function icon(name, className) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", className ? `icon ${className}` : "icon");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const use = document.createElementNS(SVG_NS, "use");
+  use.setAttribute("href", `#${name}`);
+  svg.appendChild(use);
+  return svg;
 }
 
 function clear(node) {
@@ -70,6 +136,91 @@ async function postJSON(url, body) {
   return payload;
 }
 
+/* ---------- 主题 ---------- */
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const button = $("theme-toggle");
+  button.title = theme === "dark" ? "切换到浅色主题" : "切换到深色主题";
+  button.setAttribute("aria-pressed", String(theme === "dark"));
+}
+
+function initTheme() {
+  let saved = null;
+  try {
+    saved = window.localStorage.getItem(THEME_KEY);
+  } catch (error) {
+    saved = null;
+  }
+  const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applyTheme(saved === "dark" || saved === "light" ? saved : prefersDark ? "dark" : "light");
+}
+
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(next);
+  try {
+    window.localStorage.setItem(THEME_KEY, next);
+  } catch (error) {
+    /* 隐私模式下写不进去也不影响本次切换 */
+  }
+}
+
+/* ---------- Material 反馈：涟漪与 snackbar ---------- */
+
+const RIPPLE_SELECTOR = ".btn, .icon-btn, .compose, .seg, .sort-btn, .history-item, .opt, .pipe-node";
+
+function initRipple() {
+  document.addEventListener("pointerdown", (event) => {
+    const host = event.target instanceof Element ? event.target.closest(RIPPLE_SELECTOR) : null;
+    if (!host || host.disabled) return;
+    const rect = host.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    if (!size) return;
+    const wave = el("span", "ripple");
+    wave.style.width = `${size}px`;
+    wave.style.height = `${size}px`;
+    wave.style.left = `${event.clientX - rect.left - size / 2}px`;
+    wave.style.top = `${event.clientY - rect.top - size / 2}px`;
+    host.appendChild(wave);
+    wave.addEventListener("animationend", () => wave.remove());
+  });
+}
+
+let snackTimer = null;
+
+function snack(message, action) {
+  const bar = $("snackbar");
+  const button = $("snackbar-action");
+  setText("snackbar-text", message);
+  clear(button);
+  if (action) {
+    button.hidden = false;
+    button.textContent = action.label;
+    button.onclick = () => {
+      hideSnack();
+      action.run();
+    };
+  } else {
+    button.hidden = true;
+    button.onclick = null;
+  }
+  bar.hidden = false;
+  void bar.offsetWidth;
+  bar.classList.add("is-open");
+  if (snackTimer) window.clearTimeout(snackTimer);
+  snackTimer = window.setTimeout(hideSnack, action ? 6000 : 3200);
+}
+
+function hideSnack() {
+  const bar = $("snackbar");
+  bar.classList.remove("is-open");
+  if (snackTimer) window.clearTimeout(snackTimer);
+  snackTimer = window.setTimeout(() => {
+    bar.hidden = true;
+  }, 260);
+}
+
 /* ---------- 配置与环境 ---------- */
 
 function stepFlag(stepName, key) {
@@ -100,6 +251,7 @@ function renderOptionToggles() {
     input.type = "checkbox";
     input.dataset.key = field.key;
     input.checked = stepFlag(field.step, field.from || "enabled");
+    input.setAttribute("aria-label", field.label);
     label.appendChild(input);
     label.appendChild(el("span", null, field.label));
     box.appendChild(label);
@@ -115,6 +267,19 @@ function renderOptionToggles() {
   input.value = state.config ? String(state.config.timeout_ms) : "8000";
   timeout.appendChild(input);
   box.appendChild(timeout);
+  syncOptionState();
+}
+
+function optionInput(key) {
+  return document.querySelector(`#options input[data-key="${key}"]`);
+}
+
+function syncOptionState() {
+  document.querySelectorAll("#options .opt").forEach((label) => {
+    const input = label.querySelector("input");
+    label.classList.toggle("is-on", Boolean(input && input.checked));
+  });
+  updatePipeStates();
 }
 
 function renderEnv(auditTotal, totalExact = true) {
@@ -148,12 +313,132 @@ async function refreshHealth() {
   dot.className = "dot";
   try {
     const health = await getJSON("/healthz");
-    dot.classList.add(health.status === "ok" ? "ok" : "warn");
+    const ok = health.status === "ok";
+    dot.classList.add(ok ? "ok" : "warn");
     dot.title = `provider=${health.provider}`;
+    setText("health-text", `${health.provider} · ${ok ? "正常" : "降级"}`);
+    $("health-pill").title = `provider=${health.provider} · status=${health.status}`;
   } catch (error) {
     dot.classList.add("bad");
     dot.title = String(error.message || error);
+    setText("health-text", "服务不可达");
   }
+}
+
+/* ---------- hero：流水线图与统计 ---------- */
+
+function renderPipe() {
+  const pipe = $("pipe");
+  clear(pipe);
+  PIPE_ORDER.forEach((name, index) => {
+    if (index > 0) {
+      const link = el("li", "pipe-link");
+      link.setAttribute("aria-hidden", "true");
+      link.style.setProperty("--from", `var(${STEP_HUE[PIPE_ORDER[index - 1]]})`);
+      link.style.setProperty("--to", `var(${STEP_HUE[name]})`);
+      pipe.appendChild(link);
+    }
+    const item = el("li", "pipe-step");
+    item.dataset.step = name;
+    const node = el("button", "pipe-node");
+    node.type = "button";
+    node.dataset.step = name;
+    const dot = el("span", "pipe-dot");
+    dot.appendChild(icon(STEP_ICON[name] || "i-layers"));
+    node.appendChild(dot);
+    node.appendChild(el("span", "pipe-name", name));
+    node.appendChild(el("span", "pipe-state", ""));
+    node.addEventListener("click", () => {
+      const key = STEP_OPTION[name];
+      const input = key ? optionInput(key) : null;
+      if (!input) return;
+      input.checked = !input.checked;
+      syncOptionState();
+    });
+    item.appendChild(node);
+    pipe.appendChild(item);
+  });
+  updatePipeStates();
+}
+
+function updatePipeStates() {
+  document.querySelectorAll(".pipe-node").forEach((node) => {
+    const name = node.dataset.step;
+    const input = optionInput(STEP_OPTION[name]);
+    if (name === "schema") {
+      // schema 步骤常开，节点永远点亮；strict 只是它的一个开关，用双环与文案表达。
+      const strict = Boolean(input && input.checked);
+      node.classList.add("is-on");
+      node.classList.toggle("is-strict", strict);
+      node.querySelector(".pipe-state").textContent = strict ? "strict 严格" : "常开";
+      node.title = strict ? "schema 常开，当前 strict 严格模式；点击关闭" : "schema 常开；点击开启 strict 严格模式";
+      node.setAttribute("aria-pressed", String(strict));
+      return;
+    }
+    const on = Boolean(input && input.checked);
+    node.classList.toggle("is-on", on);
+    node.querySelector(".pipe-state").textContent = on ? "启用" : "关闭";
+    node.title = `${name} 当前${on ? "启用" : "关闭"}，点击切换（与下方开关联动）`;
+    node.setAttribute("aria-pressed", String(on));
+  });
+}
+
+const tweens = new Map();
+
+function tweenValue(id, target, format) {
+  const node = $(id);
+  const previous = tweens.get(id);
+  if (previous) window.cancelAnimationFrame(previous.frame);
+  const from = Number(node.dataset.raw || 0);
+  if (!Number.isFinite(target)) {
+    node.dataset.raw = "0";
+    node.textContent = "–";
+    tweens.delete(id);
+    return;
+  }
+  const start = performance.now();
+  const duration = 520;
+  const tick = (now) => {
+    const progress = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const value = from + (target - from) * eased;
+    node.textContent = format(value);
+    if (progress < 1) {
+      tweens.set(id, { frame: window.requestAnimationFrame(tick) });
+    } else {
+      node.dataset.raw = String(target);
+      node.textContent = format(target);
+      tweens.delete(id);
+    }
+  };
+  node.dataset.raw = String(target);
+  node.textContent = format(target);
+  tweens.set(id, { frame: window.requestAnimationFrame(tick) });
+}
+
+function renderStats() {
+  const items = state.items;
+  const scored = items.map((item) => Number(item.score)).filter((value) => Number.isFinite(value));
+  const average = scored.length ? scored.reduce((sum, value) => sum + value, 0) / scored.length : NaN;
+  const judged = items.filter((item) => typeof item.valid === "boolean");
+  const passed = judged.filter((item) => item.valid && !item.degraded).length;
+  const passRate = judged.length ? (passed / judged.length) * 100 : NaN;
+  const times = items
+    .map((item) => Number(item.ms))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
+  const median = times.length ? times[Math.floor(times.length / 2)] : NaN;
+
+  tweenValue("stat-total", state.auditTotal || items.length, (value) => String(Math.round(value)));
+  tweenValue("stat-avg", average, (value) => value.toFixed(3));
+  tweenValue("stat-pass", passRate, (value) => `${Math.round(value)}%`);
+  tweenValue("stat-ms", median, (value) => `${Math.round(value)}ms`);
+
+  const scope = `统计口径：最近载入的 ${items.length} 条审计记录`;
+  $("stat-avg").title = scope;
+  $("stat-pass").title = `${scope}；通过 = valid 且未降级`;
+  $("stat-ms").title = scope;
+  $("stat-total").title = "审计文件中的记录总数";
 }
 
 /* ---------- 历史列表 ---------- */
@@ -195,15 +480,59 @@ function previewOf(record) {
   return text.length ? text.slice(0, 110) : "（空输出）";
 }
 
+function haystack(record) {
+  const final = record.final_output;
+  return [
+    record.raw_output,
+    record.instruction,
+    record.request_id,
+    record.schema,
+    record.provider,
+    typeof final === "string" ? final : JSON.stringify(final ?? ""),
+  ]
+    .map((part) => String(part ?? "").toLowerCase())
+    .join("\n");
+}
+
+function visibleItems() {
+  let items = state.items.slice();
+  const query = state.query.trim().toLowerCase();
+  if (query) items = items.filter((item) => haystack(item).includes(query));
+  if (state.sort === "old") items.reverse();
+  else if (state.sort === "score") {
+    items.sort((a, b) => (Number(b.score) || -1) - (Number(a.score) || -1));
+  }
+  return items;
+}
+
 function renderHistory() {
   const list = $("history-list");
   const fragment = document.createDocumentFragment();
   const template = $("tpl-history-item");
+  const items = visibleItems();
   clear(list);
-  if (!state.items.length) {
-    list.appendChild(el("div", "muted-note", "暂无审计记录。运行一次优化即可在此留痕。"));
+  setText("rail-count", String(items.length));
+  if (!items.length) {
+    const note = el(
+      "div",
+      "muted-note",
+      state.query.trim() ? `没有匹配「${state.query.trim()}」的记录。` : "暂无审计记录。运行一次优化即可在此留痕。"
+    );
+    note.style.padding = "10px 16px";
+    list.appendChild(note);
+    if (state.query.trim()) {
+      const reset = el("button", "btn btn-text btn-sm", "清除搜索");
+      reset.type = "button";
+      reset.style.margin = "0 12px";
+      reset.addEventListener("click", () => {
+        state.query = "";
+        $("history-search").value = "";
+        renderHistory();
+      });
+      list.appendChild(reset);
+    }
   }
-  state.items.forEach((record) => {
+  items.forEach((record) => {
     const node = template.content.firstElementChild.cloneNode(true);
     const status = statusOf(record);
     node.querySelector('[data-role="dot"]').classList.add(status.cls);
@@ -219,6 +548,7 @@ function renderHistory() {
       ...flags,
     ].join(" · ");
     node.classList.toggle("selected", record.line_no === state.selectedLine);
+    node.title = record.request_id || "";
     node.addEventListener("click", () => selectRecord(record.line_no));
     fragment.appendChild(node);
   });
@@ -230,6 +560,7 @@ async function loadHistory() {
   try {
     const data = await getJSON("/v1/audits?limit=60");
     state.items = data.items || [];
+    state.auditTotal = data.total_lines || 0;
     const exact = data.total_exact !== false;
     const totalText = exact ? `${data.total_lines} 条` : `尾部 ${data.total_lines} 条（窗口下界）`;
     foot.textContent = `${state.items.length} / ${totalText}${data.skipped ? ` · 跳过损坏 ${data.skipped}` : ""}`;
@@ -239,6 +570,7 @@ async function loadHistory() {
     foot.textContent = `历史读取失败：${error.message}`;
   }
   renderHistory();
+  renderStats();
 }
 
 function recordById(requestId) {
@@ -259,7 +591,8 @@ function selectRecord(lineNo) {
   renderResult(record);
   renderDiff(record);
   renderHistory();
-  $("result-panel").scrollIntoView({ block: "nearest" });
+  if (isNarrow()) setDrawer(false);
+  $("result-panel").scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 /* ---------- 结果渲染 ---------- */
@@ -291,9 +624,36 @@ function chip(label, value) {
   return node;
 }
 
+function scoreTone(ratio) {
+  const threshold = Number(state.config && state.config.score_threshold);
+  const limit = Number.isFinite(threshold) ? threshold : 0.8;
+  if (ratio >= limit) return { hue: "var(--green-bright)", cls: "ok" };
+  if (ratio >= limit * 0.6) return { hue: "var(--yellow)", cls: "warn" };
+  return { hue: "var(--red-bright)", cls: "bad" };
+}
+
+function renderDial(record) {
+  const arc = $("dial-arc");
+  const raw = record.score;
+  const hasScore = raw !== null && raw !== undefined && Number.isFinite(Number(raw));
+  const ratio = hasScore ? Math.max(0, Math.min(1, Number(raw))) : 0;
+  const tone = scoreTone(ratio);
+  arc.style.strokeDasharray = String(DIAL_CIRCUMFERENCE);
+  arc.style.strokeDashoffset = String(DIAL_CIRCUMFERENCE * (1 - ratio));
+  arc.style.stroke = hasScore ? tone.hue : "var(--text-3)";
+  setText("dial-value", hasScore ? ratio.toFixed(3) : "–");
+  $("dial-value").style.color = hasScore ? tone.hue : "var(--text-3)";
+  const threshold = Number(state.config && state.config.score_threshold);
+  const limit = Number.isFinite(threshold) ? threshold : 0.8;
+  $("dial-threshold").setAttribute("transform", `rotate(${limit * 360} 60 60)`);
+  $("dial").title = hasScore ? `score ${ratio.toFixed(3)} · 采纳阈值 ${limit}` : "该记录没有 score";
+  setText("threshold-note", `采纳阈值 ${limit.toFixed(2)} · 环上刻度即阈值位置`);
+}
+
 function renderResult(record) {
   const panel = $("result-panel");
   panel.hidden = false;
+  state.currentRecord = record;
   setText("result-id", record.request_id);
   const status = statusOf(record);
 
@@ -316,6 +676,7 @@ function renderResult(record) {
     );
   }
 
+  renderDial(record);
   renderSteps(record.steps || []);
   renderDimensions(record.dimensions);
   renderTags(record);
@@ -330,14 +691,27 @@ function renderSteps(steps) {
   }
   const maxMs = Math.max(1, ...steps.map((step) => Number(step.ms) || 0));
   steps.forEach((step) => {
+    const key = String(step.name || "").toLowerCase();
     const row = el("div", "step");
+    row.dataset.step = key;
+    if (!step.passed) row.classList.add("is-fail");
+    row.title = step.passed ? "通过" : "未通过";
     const name = el("span", "step-name");
-    const dot = el("span", `dot ${step.passed ? "ok" : "bad"}`);
-    name.appendChild(dot);
+    const badge = el("span", "step-ico");
+    badge.appendChild(icon(STEP_ICON[key] || "i-layers"));
+    name.appendChild(badge);
     name.appendChild(el("span", null, step.name));
     const bar = el("span", "bar");
     const fill = el("span");
-    fill.style.width = `${Math.max(2, ((Number(step.ms) || 0) / maxMs) * 100)}%`;
+    // mock 下各步耗时为 0，条长退化为得分；有真实耗时时仍按耗时占比。
+    const hasScore = step.score !== undefined && step.score !== null && Number.isFinite(Number(step.score));
+    const ratio = hasScore
+      ? Math.max(0, Math.min(1, Number(step.score)))
+      : Math.max(0.02, (Number(step.ms) || 0) / maxMs);
+    fill.style.width = `${Math.max(2, ratio * 100)}%`;
+    bar.title = hasScore
+      ? `步骤得分 ${Number(step.score).toFixed(2)} · 耗时 ${step.ms ?? 0}ms`
+      : `耗时占比 ${step.ms ?? 0}ms / ${maxMs}ms`;
     if (!step.passed) fill.style.background = "var(--warn)";
     bar.appendChild(fill);
     const scoreText = step.score === undefined || step.score === null ? "" : ` · ${Number(step.score).toFixed(2)}`;
@@ -362,6 +736,7 @@ function renderDimensions(dimensions) {
   keys.forEach((key) => {
     const value = dimensions[key];
     const row = el("div", "dim");
+    row.dataset.dim = key;
     row.appendChild(el("span", "dim-name", DIMENSION_LABELS[key] || key));
     const bar = el("span", "bar");
     const fill = el("span");
@@ -461,26 +836,103 @@ function diffRow(row) {
   return node;
 }
 
-function renderDiff(record) {
+function splitPairs(rows) {
+  const pairs = [];
+  let index = 0;
+  while (index < rows.length) {
+    if (rows[index].t === "eq") {
+      pairs.push({ left: rows[index], right: rows[index] });
+      index += 1;
+      continue;
+    }
+    const dels = [];
+    const adds = [];
+    while (index < rows.length && rows[index].t === "del") dels.push(rows[index++]);
+    while (index < rows.length && rows[index].t === "add") adds.push(rows[index++]);
+    const count = Math.max(dels.length, adds.length);
+    for (let k = 0; k < count; k += 1) pairs.push({ left: dels[k] || null, right: adds[k] || null });
+  }
+  return pairs;
+}
+
+function splitCell(row, side) {
+  if (!row) {
+    const empty = el("span", "cell empty", " ");
+    empty.title = side === "left" ? "优化前无对应行" : "优化后无对应行";
+    return empty;
+  }
+  return el("span", `cell ${row.t}`, row.v.length ? row.v : " ");
+}
+
+function splitRow(pair) {
+  const node = el("div", "dl split");
+  node.appendChild(el("span", "no", pair.left ? pair.left.no : ""));
+  node.appendChild(splitCell(pair.left, "left"));
+  node.appendChild(el("span", "no", pair.right ? pair.right.no : ""));
+  node.appendChild(splitCell(pair.right, "right"));
+  return node;
+}
+
+function paintDiff() {
   const box = $("diff");
   clear(box);
-  const before = prettyText(record.raw_output).split("\n");
-  const after = prettyText(record.final_output).split("\n");
-  if (before.length === 1 && !before[0] && after.length === 1 && !after[0]) {
-    box.appendChild(el("div", "diff-note", "运行优化后在此对照。"));
+  const rows = state.diffRows;
+  const split = state.diffView === "split" && !state.diffDegraded;
+  box.classList.toggle("is-split", split);
+  if (state.diffNote) box.appendChild(el("div", "diff-note", state.diffNote));
+  if (!rows.length) {
+    if (!state.diffNote) box.appendChild(el("div", "diff-note", "运行优化后在此对照。"));
     setText("diff-mode", "");
     return;
   }
-  if (before.length > MAX_DIFF_LINES || after.length > MAX_DIFF_LINES) {
-    box.appendChild(el("div", "diff-note", `行数超过 ${MAX_DIFF_LINES}，跳过逐行 diff，仅展示优化后结果。`));
-    after.forEach((line, index) => box.appendChild(diffRow({ t: "eq", v: line, no: index + 1 })));
-    setText("diff-mode", "已降级");
+  if (split) {
+    const head = el("div", "dl split-head");
+    head.appendChild(el("span", null, "优化前"));
+    head.appendChild(el("span", null, "优化后"));
+    box.appendChild(head);
+    splitPairs(rows).forEach((pair) => box.appendChild(splitRow(pair)));
+  } else {
+    rows.forEach((row) => box.appendChild(diffRow(row)));
+  }
+  const changed = rows.filter((row) => row.t !== "eq").length;
+  setText("diff-mode", state.diffDegraded ? "已降级" : changed ? `${changed} 行变更` : "无变更");
+}
+
+function renderDiff(record) {
+  state.diffRecord = record;
+  const before = prettyText(record.raw_output).split("\n");
+  const after = prettyText(record.final_output).split("\n");
+  const splitButton = document.querySelector('#diff-view [data-view="split"]');
+  state.diffNote = "";
+  if (before.length === 1 && !before[0] && after.length === 1 && !after[0]) {
+    state.diffRows = [];
+    state.diffDegraded = false;
+    splitButton.disabled = true;
+    paintDiff();
     return;
   }
-  const rows = diffLines(before, after);
-  const changed = rows.filter((row) => row.t !== "eq").length;
-  rows.forEach((row) => box.appendChild(diffRow(row)));
-  setText("diff-mode", changed ? `${changed} 行变更` : "无变更");
+  if (before.length > MAX_DIFF_LINES || after.length > MAX_DIFF_LINES) {
+    state.diffRows = after.map((line, index) => ({ t: "eq", v: line, no: index + 1 }));
+    state.diffDegraded = true;
+    state.diffNote = `行数超过 ${MAX_DIFF_LINES}，跳过逐行 diff，仅展示优化后结果。`;
+    splitButton.disabled = true;
+    splitButton.title = `行数超过 ${MAX_DIFF_LINES}，已跳过逐行 diff`;
+    paintDiff();
+    return;
+  }
+  state.diffRows = diffLines(before, after);
+  state.diffDegraded = false;
+  splitButton.disabled = false;
+  splitButton.title = "";
+  paintDiff();
+}
+
+function setDiffView(view) {
+  state.diffView = view;
+  document.querySelectorAll("#diff-view .seg").forEach((button) => {
+    button.classList.toggle("is-on", button.dataset.view === view);
+  });
+  paintDiff();
 }
 
 /* ---------- 表单 ---------- */
@@ -521,6 +973,13 @@ function applyOptimizeResponse(response, fallbackRawOutput) {
   return record;
 }
 
+function requestRun() {
+  const form = $("optimize-form");
+  if ($("run-btn").disabled) return;
+  if (typeof form.requestSubmit === "function") form.requestSubmit();
+  else $("run-btn").click();
+}
+
 async function submitRun(event) {
   event.preventDefault();
   const button = $("run-btn");
@@ -532,12 +991,71 @@ async function submitRun(event) {
     await loadHistory();
     const record = applyOptimizeResponse(response, payload.raw_output);
     setStatus(`完成 · ${record.request_id}`);
+    snack(`优化完成 · score ${record.score === null || record.score === undefined ? "–" : Number(record.score).toFixed(3)}`);
+    $("result-panel").scrollIntoView({ block: "nearest", behavior: "smooth" });
   } catch (error) {
     setStatus(`失败：${error.message}`, true);
+    snack(`运行失败：${error.message}`, { label: "重试", run: requestRun });
   } finally {
     button.disabled = false;
   }
 }
+
+function fillSample() {
+  $("field-schema").value = SAMPLE.schema;
+  $("field-instruction").value = SAMPLE.instruction;
+  $("field-input-text").value = SAMPLE.input_text;
+  $("field-raw").value = SAMPLE.raw_output;
+  setStatus("已填入示例，可直接运行");
+  $("section-input").scrollIntoView({ block: "start", behavior: "smooth" });
+  snack("已填入示例：paper schema + 一条待规范化的 CVPR 引用");
+}
+
+async function copyOutput() {
+  const record = state.currentRecord;
+  if (!record) {
+    snack("还没有可复制的结果");
+    return;
+  }
+  const value = record.final_output;
+  const text = typeof value === "string" ? value : JSON.stringify(value ?? null, null, 2);
+  try {
+    await navigator.clipboard.writeText(text);
+    snack("已复制优化后输出到剪贴板");
+  } catch (error) {
+    const helper = el("textarea");
+    helper.value = text;
+    helper.setAttribute("readonly", "readonly");
+    helper.style.position = "fixed";
+    helper.style.opacity = "0";
+    document.body.appendChild(helper);
+    helper.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (inner) {
+      ok = false;
+    }
+    helper.remove();
+    snack(ok ? "已复制优化后输出到剪贴板" : "复制失败：请手动选择文本");
+  }
+}
+
+function rerunCurrent() {
+  const record = state.currentRecord;
+  if (!record) {
+    snack("还没有可重跑的记录");
+    return;
+  }
+  $("field-raw").value = String(record.raw_output ?? "");
+  $("field-instruction").value = String(record.instruction ?? "");
+  $("field-input-text").value = String(record.input_text ?? "");
+  const schemaName = String(record.schema || "").toLowerCase();
+  $("field-schema").value = Object.keys(state.config.schemas).includes(schemaName) ? schemaName : "";
+  requestRun();
+}
+
+/* ---------- harness ---------- */
 
 function harnessInfo() {
   return (state.config && state.config.harness) || { enabled: false, options: [], name: null, timeout_ms: 0 };
@@ -629,7 +1147,10 @@ async function loadHarnesses(probe) {
     state.harnessNotes = data.notes || {};
     renderDetected(data);
     renderProfileNotes();
-    if (probe) statusNode.textContent = data.probed ? "探测完成" : "驱动未启用，已跳过探测";
+    if (probe) {
+      statusNode.textContent = data.probed ? "探测完成" : "驱动未启用，已跳过探测";
+      statusNode.classList.remove("error");
+    }
   } catch (error) {
     clear($("harness-detected"));
     $("harness-detected").appendChild(el("div", "muted-note", `检测失败：${error.message}`));
@@ -665,42 +1186,266 @@ async function submitHarness() {
     const info = response.harness || {};
     statusNode.textContent = `完成 · ${record.request_id} · harness ${info.ms ?? "-"}ms`;
     $("form-status").textContent = "";
+    snack(`harness 完成 · ${info.name || "profile"} · ${info.ms ?? "-"}ms`);
   } catch (error) {
     statusNode.textContent = `失败：${error.message}`;
     statusNode.classList.add("error");
+    snack(`harness 失败：${error.message}`);
   } finally {
     renderHarnessEntry();
   }
 }
 
-function resetRun() {
+function resetRun(announce = false) {
+  const snapshot = {
+    raw: $("field-raw").value,
+    instruction: $("field-instruction").value,
+    inputText: $("field-input-text").value,
+    schema: $("field-schema").value,
+    selectedLine: state.selectedLine,
+  };
+  const hadContent = Boolean(snapshot.raw || snapshot.instruction || snapshot.inputText);
   state.selectedLine = null;
+  state.currentRecord = null;
+  state.undoSnapshot = snapshot;
   $("field-raw").value = "";
   $("field-instruction").value = "";
   $("field-input-text").value = "";
   $("field-schema").value = "";
   $("result-panel").hidden = true;
-  clear($("diff"));
-  $("diff").appendChild(el("div", "diff-note", "运行优化后在此对照。"));
-  setText("diff-mode", "");
+  state.diffRows = [];
+  state.diffDegraded = false;
+  state.diffNote = "";
+  state.diffRecord = null;
+  paintDiff();
   setStatus("");
   renderHistory();
-  $("field-raw").focus();
+  $("field-raw").focus({ preventScroll: true });
+  if (announce) {
+    if (hadContent) {
+      snack("已新建空白会话", {
+        label: "撤销",
+        run: () => {
+          $("field-raw").value = snapshot.raw;
+          $("field-instruction").value = snapshot.instruction;
+          $("field-input-text").value = snapshot.inputText;
+          $("field-schema").value = snapshot.schema;
+          state.selectedLine = snapshot.selectedLine;
+          const record = state.items.find((item) => item.line_no === snapshot.selectedLine);
+          if (record) {
+            renderResult(record);
+            renderDiff(record);
+          }
+          renderHistory();
+          snack("已恢复上一份输入");
+        },
+      });
+    } else {
+      snack("已新建空白会话");
+    }
+  }
+}
+
+/* ---------- 导航与抽屉 ---------- */
+
+const NAV_IDS = ["section-hero", "harness-panel", "section-input", "result-panel"];
+
+function isNarrow() {
+  return window.matchMedia("(max-width: 1040px)").matches;
+}
+
+let scrimTimer = null;
+
+function setDrawer(open) {
+  const app = $("app");
+  const scrim = $("scrim");
+  app.classList.toggle("drawer-open", open);
+  $("menu-btn").setAttribute("aria-expanded", String(open));
+  if (scrimTimer) window.clearTimeout(scrimTimer);
+  if (open) {
+    scrim.hidden = false;
+    void scrim.offsetWidth;
+    scrim.classList.add("is-open");
+  } else {
+    scrim.classList.remove("is-open");
+    scrimTimer = window.setTimeout(() => {
+      scrim.hidden = true;
+    }, 260);
+  }
+}
+
+function setActiveNav(id) {
+  document.querySelectorAll(".appnav-link").forEach((link) => {
+    link.classList.toggle("is-active", link.dataset.nav === id);
+  });
+}
+
+function updateActiveNav() {
+  let best = null;
+  let bestScore = -Infinity;
+  NAV_IDS.forEach((id) => {
+    const node = $(id);
+    if (!node || node.hidden) return;
+    const rect = node.getBoundingClientRect();
+    const top = Math.max(rect.top, 70);
+    const bottom = Math.min(rect.bottom, window.innerHeight);
+    const visible = Math.max(0, bottom - top);
+    const score = visible - Math.abs(rect.top - 90) * 0.2;
+    if (score > bestScore) {
+      bestScore = score;
+      best = id;
+    }
+  });
+  if (best) setActiveNav(best);
+}
+
+function updateAppbarShadow() {
+  const scrolled = $("workspace").scrollTop > 4 || window.scrollY > 4;
+  $("appbar").classList.toggle("is-scrolled", scrolled);
+}
+
+function initNavigation() {
+  document.querySelectorAll(".appnav-link").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const target = $(link.dataset.nav);
+      if (!target) return;
+      if (target.hidden) {
+        snack("结果面板还没有内容：先运行一次优化");
+        return;
+      }
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+      setActiveNav(link.dataset.nav);
+    });
+  });
+  $("wordmark").addEventListener("click", (event) => {
+    event.preventDefault();
+    $("section-hero").scrollIntoView({ block: "start", behavior: "smooth" });
+    setActiveNav("section-hero");
+  });
+
+  let queued = false;
+  const onScroll = () => {
+    if (queued) return;
+    queued = true;
+    window.requestAnimationFrame(() => {
+      queued = false;
+      updateAppbarShadow();
+      updateActiveNav();
+    });
+  };
+  let railQueued = false;
+  const onRailScroll = () => {
+    if (railQueued) return;
+    railQueued = true;
+    window.requestAnimationFrame(() => {
+      railQueued = false;
+      updateAppbarShadow();
+      setActiveNav("section-diff");
+    });
+  };
+  $("workspace").addEventListener("scroll", onScroll, { passive: true });
+  document.querySelector(".rail-right").addEventListener("scroll", onRailScroll, { passive: true });
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", () => {
+    if (!isNarrow()) setDrawer(false);
+    onScroll();
+  });
+  onScroll();
 }
 
 /* ---------- 启动 ---------- */
 
+async function reloadAll() {
+  try {
+    state.config = await getJSON("/v1/config");
+  } catch (error) {
+    snack(`读取 /v1/config 失败：${error.message}`);
+  }
+  renderSchemaOptions();
+  renderOptionToggles();
+  renderPipe();
+  renderEnv();
+  renderHarnessEntry();
+  renderHarnessOptions();
+  await loadHistory();
+  await refreshHealth();
+}
+
 async function init() {
+  initTheme();
+  initRipple();
+  initNavigation();
+
+  $("theme-toggle").addEventListener("click", toggleTheme);
+  $("menu-btn").addEventListener("click", () => setDrawer(!$("app").classList.contains("drawer-open")));
+  $("scrim").addEventListener("click", () => setDrawer(false));
   $("toggle-history").addEventListener("click", (event) => {
+    if (isNarrow()) {
+      setDrawer(false);
+      return;
+    }
     const app = $("app");
     app.classList.toggle("collapsed");
     event.currentTarget.setAttribute("aria-expanded", String(!app.classList.contains("collapsed")));
   });
-  $("new-run").addEventListener("click", resetRun);
+  $("new-run").addEventListener("click", () => {
+    resetRun(true);
+    if (isNarrow()) setDrawer(false);
+    $("section-input").scrollIntoView({ block: "start", behavior: "smooth" });
+  });
+  $("hero-new").addEventListener("click", () => {
+    resetRun(true);
+    $("section-input").scrollIntoView({ block: "start", behavior: "smooth" });
+  });
+  $("sample-btn").addEventListener("click", fillSample);
+  $("appbar-run").addEventListener("click", () => {
+    $("section-input").scrollIntoView({ block: "start", behavior: "smooth" });
+    requestRun();
+  });
   $("optimize-form").addEventListener("submit", submitRun);
+  $("copy-output").addEventListener("click", copyOutput);
+  $("rerun-btn").addEventListener("click", rerunCurrent);
+  $("refresh-env").addEventListener("click", async () => {
+    await reloadAll();
+    snack("已重新读取配置、历史与健康状态");
+  });
   $("harness-run-btn").addEventListener("click", submitHarness);
   $("harness-detect-btn").addEventListener("click", () => loadHarnesses(true));
   $("field-harness").addEventListener("change", renderProfileNotes);
+  $("options").addEventListener("change", syncOptionState);
+  $("history-search").addEventListener("input", (event) => {
+    state.query = event.target.value;
+    renderHistory();
+  });
+  $("history-sort").addEventListener("click", () => {
+    const index = SORTS.findIndex((item) => item.key === state.sort);
+    const next = SORTS[(index + 1) % SORTS.length];
+    state.sort = next.key;
+    setText("history-sort-label", next.label);
+    renderHistory();
+  });
+  document.querySelectorAll("#diff-view .seg").forEach((button) => {
+    button.addEventListener("click", () => setDiffView(button.dataset.view));
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      setDrawer(false);
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      requestRun();
+      return;
+    }
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (event.key === "/" && !typing) {
+      event.preventDefault();
+      if (isNarrow()) setDrawer(true);
+      $("history-search").focus();
+    }
+  });
 
   try {
     state.config = await getJSON("/v1/config");
@@ -710,6 +1455,7 @@ async function init() {
   }
   renderSchemaOptions();
   renderOptionToggles();
+  renderPipe();
   renderEnv();
   renderHarnessEntry();
   renderHarnessOptions();
@@ -717,6 +1463,7 @@ async function init() {
   await loadHistory();
   await refreshHealth();
   await loadHarnesses(false);
+  updateActiveNav();
 }
 
 document.addEventListener("DOMContentLoaded", init);
