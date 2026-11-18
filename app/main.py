@@ -31,7 +31,7 @@ class Options(BaseModel):
     score: bool | None = None
     repair: bool | None = None
     format: bool | None = None
-    humanize: bool | None = None
+    simplify: bool | None = None
     strict: bool | None = None
     timeout_ms: int | None = Field(default=None, ge=50, le=120000)
 
@@ -112,7 +112,7 @@ async def _optimize_output(
         settings=app.state.settings,
         config=app.state.pipeline,
         repair=options.repair,
-        humanize=options.humanize,
+        simplify=options.simplify,
         fmt=options.format,
         score=options.score,
         strict=options.strict,
@@ -152,16 +152,21 @@ def _resolve_harness(harness: Any, name: str | None) -> Any:
 
 @app.post("/v1/run")
 async def run_endpoint(payload: RunRequest) -> dict[str, Any]:
-    """实验面：驱动 harness 取回最终回答，再交给同一条 post-hoc 管线。默认关闭。
+    """默认任务路径：驱动 harness 取回最终回答，再交给同一条 post-hoc 管线。
 
     时间预算是两个独立值：harness 用 ``HARNESS_TIMEOUT_MS``，优化管线用
     ``options.timeout_ms``；harness 失败或超时时**不进入**优化，直接 5xx。
     """
     harness = getattr(app.state, "harness", None)
     if harness is None:
+        settings = getattr(app.state, "settings", None)
+        cause = "HARNESS_ENABLED=false" if not getattr(settings, "harness_enabled", False) else "已开启但没有可驱动成员"
         raise HTTPException(
             status_code=503,
-            detail="harness 驱动未启用（HARNESS_ENABLED=false）。已有输出请直接调用 POST /v1/optimize",
+            detail=(
+                f"没有可用的 harness（{cause}）；`GET /v1/harnesses` 查看检测与凭据状态。"
+                "已有输出请直接调用 POST /v1/optimize"
+            ),
         )
     _check_schema(payload.schema_name)
     target = _resolve_harness(harness, payload.harness)

@@ -14,7 +14,7 @@ const OPTION_FIELDS = [
   { key: "rules", label: "评分 rules", step: "rules" },
   { key: "repair", label: "修复 repair", step: "repair" },
   { key: "format", label: "格式化 format", step: "format" },
-  { key: "humanize", label: "拟人化 humanize", step: "humanize" },
+  { key: "simplify", label: "去防御化 simplify", step: "simplify" },
   { key: "strict", label: "严格 strict", step: "schema", from: "strict" },
 ];
 
@@ -22,15 +22,21 @@ const DIMENSION_LABELS = {
   completeness: "字段完整度",
   format: "格式合规",
   grounding: "与输入一致性",
+  preservation: "与原文一致性",
+  plainness: "通俗度",
+  confidence: "自信度",
+  concision: "简洁度",
 };
 
-const PIPE_ORDER = ["schema", "rules", "repair", "format", "humanize"];
+// 留痕尾部分组：分值只说明"不好读"，标签才指出哪句是废话、哪句是真边界。
+const REASON_TAGS = { 命中: "hit", 删除无据: "cut", 保留边界: "keep" };
+
+const PIPE_ORDER = ["schema", "rules", "repair", "format", "simplify"];
 const STEP_ICON = {
   schema: "i-schema",
   rules: "i-gauge",
   repair: "i-build",
   format: "i-format",
-  humanize: "i-sparkle",
   simplify: "i-sparkle",
 };
 const STEP_HUE = {
@@ -38,10 +44,10 @@ const STEP_HUE = {
   rules: "--green-bright",
   repair: "--yellow",
   format: "--red-bright",
-  humanize: "--purple-bright",
+  simplify: "--purple-bright",
   simplify: "--orange",
 };
-const STEP_OPTION = { schema: "strict", rules: "rules", repair: "repair", format: "format", humanize: "humanize" };
+const STEP_OPTION = { schema: "strict", rules: "rules", repair: "repair", format: "format", simplify: "simplify" };
 const SORTS = [
   { key: "new", label: "最新优先" },
   { key: "old", label: "最早优先" },
@@ -451,15 +457,15 @@ function statusOf(record) {
 
 /**
  * 修复/重写各自的采纳结果。它们与 valid 是两件事：一次运行可能同时
- * “修复被闸门拒绝”与“拟人化被采纳”，标签只表达通过与否，细节进 flags。
+ * “修复被闸门拒绝”与“去防御化改写被采纳”，标签只表达通过与否，细节进 flags。
  */
 function flagsOf(record) {
   const markers = record.markers || [];
   const flags = [];
   if (markers.includes("repair_rejected")) flags.push("修复被拒");
   else if (record.repaired) flags.push("已修复");
-  if (markers.includes("humanize_rejected")) flags.push("重写被拒");
-  else if ((record.changes || []).some((text) => text.includes("拟人化"))) flags.push("已重写");
+  if (markers.includes("simplify_rejected")) flags.push("重写被拒");
+  else if ((record.changes || []).some((text) => text.includes("通俗化重写"))) flags.push("已重写");
   if (markers.includes("timeout")) flags.push("超时");
   return flags;
 }
@@ -682,6 +688,31 @@ function renderResult(record) {
   renderTags(record);
 }
 
+function renderReason(reason) {
+  const box = el("div", "step-reason");
+  const parts = String(reason).split("｜");
+  box.textContent = parts.shift();
+  parts.forEach((part) => {
+    const at = part.indexOf("：");
+    if (at < 0) {
+      box.appendChild(el("span", "reason-note", part));
+      return;
+    }
+    const label = part.slice(0, at);
+    if (label === "主张先行") {
+      box.appendChild(el("span", `tag claim ${part.endsWith("是") ? "on" : "off"}`, part));
+      return;
+    }
+    const style = REASON_TAGS[label];
+    if (!style) return;
+    part
+      .slice(at + 1)
+      .split("、")
+      .forEach((item) => box.appendChild(el("span", `tag ${style}`, item)));
+  });
+  return box;
+}
+
 function renderSteps(steps) {
   const box = $("steps");
   clear(box);
@@ -719,7 +750,7 @@ function renderSteps(steps) {
     row.appendChild(bar);
     row.appendChild(el("span", "step-ms", `${step.ms ?? 0}ms${scoreText}`));
     if (step.reason) {
-      row.appendChild(el("div", "step-reason", step.reason));
+      row.appendChild(renderReason(step.reason));
     }
     box.appendChild(row);
   });

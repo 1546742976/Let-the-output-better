@@ -1013,7 +1013,7 @@ body {
   --tonal: var(--red-tonal);
 }
 
-.pipe-step[data-step="humanize"] {
+.pipe-step[data-step="simplify"] {
   --hue: var(--purple-bright);
   --tonal: var(--purple-tonal);
 }
@@ -1811,7 +1811,7 @@ kbd {
   --tonal: var(--red-tonal);
 }
 
-.step[data-step="humanize"],
+.step[data-step="simplify"],
 .dim[data-dim="format"] {
   --hue: var(--purple-bright);
   --tonal: var(--purple-tonal);
@@ -1919,6 +1919,46 @@ kbd {
 .tag.marker {
   background: var(--yellow-tonal);
   color: var(--yellow-ink);
+}
+
+/* 步骤留痕里的三类标签：命中套话（中性）、删掉的无据限定（红）、保住的研究边界（绿）。 */
+.step-reason .tag {
+  display: inline-block;
+  margin: 3px 4px 0 0;
+  padding: 2px 7px;
+  font-size: 11px;
+}
+
+.tag.hit {
+  background: var(--surface);
+  border-color: var(--outline);
+  color: var(--text-2);
+}
+
+.tag.cut {
+  background: var(--red-tonal);
+  color: var(--red);
+}
+
+.tag.keep {
+  background: var(--green-tonal);
+  color: var(--green);
+}
+
+.tag.claim {
+  background: var(--blue-tonal);
+  color: var(--blue-ink);
+}
+
+.tag.claim.off {
+  background: var(--yellow-tonal);
+  color: var(--yellow-ink);
+}
+
+.reason-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-3);
 }
 
 .errors {

@@ -1,7 +1,7 @@
 {
   "g001": {
     "valid": true,
-    "score": 0.927,
+    "score": 0.942,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -23,7 +23,7 @@
   },
   "g002": {
     "valid": true,
-    "score": 0.9,
+    "score": 0.925,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -33,7 +33,7 @@
   },
   "g003": {
     "valid": true,
-    "score": 0.94,
+    "score": 0.955,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -52,7 +52,7 @@
   },
   "g004": {
     "valid": true,
-    "score": 0.64,
+    "score": 0.705,
     "repaired": true,
     "markers": [],
     "final_output": {
@@ -66,7 +66,7 @@
   },
   "g005": {
     "valid": true,
-    "score": 0.976,
+    "score": 0.982,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -114,7 +114,7 @@
   },
   "g008": {
     "valid": true,
-    "score": 0.96,
+    "score": 0.97,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -127,7 +127,7 @@
   },
   "g009": {
     "valid": true,
-    "score": 0.98,
+    "score": 0.874,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -146,7 +146,7 @@
   },
   "g010": {
     "valid": false,
-    "score": 0.6,
+    "score": 0.936,
     "repaired": true,
     "markers": [
       "repair_rejected"
@@ -155,7 +155,7 @@
   },
   "g011": {
     "valid": true,
-    "score": 0.93,
+    "score": 0.945,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -178,7 +178,7 @@
   },
   "g012": {
     "valid": false,
-    "score": 0.6,
+    "score": 0.964,
     "repaired": true,
     "markers": [
       "repair_rejected"
@@ -187,7 +187,7 @@
   },
   "g013": {
     "valid": true,
-    "score": 0.98,
+    "score": 0.985,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -209,7 +209,7 @@
   },
   "g014": {
     "valid": true,
-    "score": 0.9,
+    "score": 0.92,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -226,7 +226,7 @@
   },
   "g015": {
     "valid": true,
-    "score": 0.565,
+    "score": 0.643,
     "repaired": true,
     "markers": [],
     "final_output": {
@@ -240,7 +240,7 @@
   },
   "g016": {
     "valid": true,
-    "score": 0.96,
+    "score": 0.97,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -259,7 +259,7 @@
   },
   "g017": {
     "valid": true,
-    "score": 0.94,
+    "score": 0.955,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -273,7 +273,7 @@
   },
   "g018": {
     "valid": true,
-    "score": 0.943,
+    "score": 0.954,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -295,7 +295,7 @@
   },
   "g019": {
     "valid": false,
-    "score": 0.6,
+    "score": 0.8,
     "repaired": true,
     "markers": [
       "repair_rejected"
@@ -304,7 +304,7 @@
   },
   "g020": {
     "valid": true,
-    "score": 0.96,
+    "score": 0.97,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -324,7 +324,7 @@
   },
   "g026": {
     "valid": true,
-    "score": 0.976,
+    "score": 0.982,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -339,7 +339,7 @@
   },
   "g027": {
     "valid": true,
-    "score": 0.976,
+    "score": 0.982,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -370,7 +370,7 @@
   },
   "g029": {
     "valid": true,
-    "score": 0.976,
+    "score": 0.982,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -387,7 +387,7 @@
   },
   "g030": {
     "valid": false,
-    "score": 0.6,
+    "score": 1.0,
     "repaired": true,
     "markers": [
       "repair_rejected"
@@ -396,7 +396,7 @@
   },
   "g031": {
     "valid": true,
-    "score": 0.96,
+    "score": 0.97,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -409,7 +409,7 @@
   },
   "g032": {
     "valid": true,
-    "score": 0.96,
+    "score": 0.97,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -436,7 +436,7 @@
   },
   "g034": {
     "valid": false,
-    "score": 0.6,
+    "score": 0.8,
     "repaired": true,
     "markers": [
       "repair_rejected"
@@ -445,7 +445,7 @@
   },
   "g035": {
     "valid": true,
-    "score": 0.9,
+    "score": 0.92,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -462,7 +462,7 @@
   },
   "g036": {
     "valid": true,
-    "score": 0.94,
+    "score": 0.955,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -478,7 +478,7 @@
   },
   "g037": {
     "valid": true,
-    "score": 0.976,
+    "score": 0.982,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -495,7 +495,7 @@
   },
   "g038": {
     "valid": true,
-    "score": 0.9,
+    "score": 0.917,
     "repaired": false,
     "markers": [],
     "final_output": {
@@ -509,7 +509,7 @@
   },
   "g039": {
     "valid": true,
-    "score": 0.755,
+    "score": 0.797,
     "repaired": true,
     "markers": [],
     "final_output": {
@@ -528,5 +528,40 @@
         "Tanaka M. Spatiotemporal graph networks for traffic forecasting[C]//KDD. 2023."
       ]
     }
+  },
+  "g040": {
+    "valid": true,
+    "score": 0.808,
+    "repaired": false,
+    "markers": [],
+    "final_output": "实验表明，本文方法在 3 个公开数据集上取得了 12.5% 的 Top-1 准确率提升，性能优于对比方法。"
+  },
+  "g041": {
+    "valid": true,
+    "score": 0.612,
+    "repaired": false,
+    "markers": [],
+    "final_output": "该方法或许可以在某些情况下被用于相关任务；受制于算力，其有效性有待进一步验证。"
+  },
+  "g042": {
+    "valid": true,
+    "score": 0.968,
+    "repaired": false,
+    "markers": [],
+    "final_output": "我们在 2 个数据集上做了 5 组消融实验，结果是正例召回率上升。"
+  },
+  "g043": {
+    "valid": true,
+    "score": 1.0,
+    "repaired": false,
+    "markers": [],
+    "final_output": "本结论仅在 3 个数据集上得到验证。"
+  },
+  "g044": {
+    "valid": true,
+    "score": 1.0,
+    "repaired": false,
+    "markers": [],
+    "final_output": "该方法仅在 24 名被试上得到验证。"
   }
 }

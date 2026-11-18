@@ -28,6 +28,7 @@ def client_with(
     enabled: bool = True,
     timeout_ms: int = 15000,
     concurrency: int = 1,
+    detect: bool = True,
 ) -> Iterator[TestClient]:
     harness_command = PY if enabled else ""
     settings = Settings(
@@ -40,6 +41,9 @@ def client_with(
         harness_args=args,
         harness_timeout_ms=timeout_ms,
         harness_max_concurrency=concurrency,
+        # 扫描保持开启：装配结果里 "command" 排第一，选择与本机装了什么无关，
+        # 同时保住发现器的覆盖率。需要"零成员"时由用例自己关掉（见下条测试）。
+        harness_detect=detect,
     )
     monkeypatch.setattr(api, "get_settings", lambda: settings)
     monkeypatch.setattr(api, "get_pipeline_config", lambda: PipelineConfig(audit=True))
@@ -52,6 +56,36 @@ def test_run_is_503_when_harness_is_disabled(tmp_path: Path, monkeypatch: pytest
         response = client.post("/v1/run", json={"task": "抽取元数据"})
     assert response.status_code == 503
     assert "/v1/optimize" in response.json()["detail"]
+    assert "HARNESS_ENABLED=false" in response.json()["detail"]
+
+
+def test_harness_is_enabled_by_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """默认走 harness 是任务主路径；未配置成员时也必须能靠粘贴输出照常工作。"""
+    for name in ("HARNESS_ENABLED",):
+        monkeypatch.delenv(name, raising=False)
+    assert Settings(_env_file=None).harness_enabled is True
+
+
+def test_run_is_503_when_enabled_but_no_member(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """ "开启"不等于"可执行"：503 文案要说清是没成员，而不是让人以为开关没开。"""
+    settings = Settings(
+        _env_file=None,
+        provider="mock",
+        audit_path=str(tmp_path / "audit.jsonl"),
+        harness_enabled=True,
+        harness_command="",
+        harness_detect=False,
+        harness_providers="openai-api",
+        openai_api_key="",
+    )
+    monkeypatch.setattr(api, "get_settings", lambda: settings)
+    monkeypatch.setattr(api, "get_pipeline_config", lambda: PipelineConfig(audit=True))
+    with TestClient(api.app) as client:
+        response = client.post("/v1/run", json={"task": "抽取元数据"})
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert "已开启但没有可驱动成员" in detail and "HARNESS_ENABLED=false" not in detail
+    assert client.get("/healthz").status_code == 200
 
 
 def test_run_optimizes_harness_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

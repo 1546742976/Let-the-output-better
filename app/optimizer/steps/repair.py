@@ -24,11 +24,16 @@ class RepairStep(BaseStep):
     name = "repair"
 
     def should_run(self, ctx: StepContext) -> bool:
+        # 修复的产物是结构化 JSON；没有 Schema 的散文没有"结构"可修，
+        # 触发它只会白烧一次调用并留下必然被拒的候选。
+        if ctx.schema is None:
+            return False
         if ctx.provider is None or ctx.remaining_s() <= 0.2:
             return False
         if not ctx.valid:
-            return ctx.score is None or ctx.score < ctx.settings.score_threshold
-        # 评分步骤被关闭时没有质量信号，不因“缺分数”而触发修复调用。
+            # 校验没过就一定值得修，与当时分数无关（散文可能本来就没内容可评）。
+            return True
+        # 评分步骤被关闭时没有质量信号，不因"缺分数"而触发修复调用。
         return ctx.score is not None and ctx.score < ctx.settings.score_threshold
 
     async def run(self, ctx: StepContext) -> StepResult:

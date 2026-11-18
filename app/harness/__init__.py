@@ -11,7 +11,6 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app.harness.api import ApiHarness
 from app.harness.base import (
     BaseHarness,
     HarnessBusy,
@@ -25,7 +24,24 @@ from app.harness.detect import scan
 from app.harness.profiles import OPENAI_API, PROFILES
 
 if TYPE_CHECKING:
+    from app.harness.api import ApiHarness
     from app.settings import Settings
+
+
+def __getattr__(name: str) -> type[ApiHarness]:
+    """``ApiHarness`` 按需导入。
+
+    它是本包里唯一需要 ``app.providers`` 的成员，而 ``app.providers`` 反指
+    ``app.settings``；顶层导入等于让 ``app.settings → app.harness → app.providers →
+    app.settings`` 成环，先导入 ``app.settings`` 就会失败。其余成员（装配、发现、
+    子进程驱动）都不跨这条边，保持常规导入。
+    """
+    if name == "ApiHarness":
+        from app.harness.api import ApiHarness as impl
+
+        return impl
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "ApiHarness",
@@ -125,6 +141,9 @@ def _api(settings: Settings) -> ApiHarness | None:
     """API 形态仅在密钥存在时注册；缺密钥不得让启动失败。"""
     if not settings.openai_api_key:
         return None
+    # 两个导入都留在这里：app.harness.api 经 app.providers 反指 app.settings，
+    # 放到模块顶层会让 `import app.settings` 成为死路（见 __getattr__ 的说明）。
+    from app.harness.api import ApiHarness
     from app.providers.openai_compatible import OpenAICompatibleProvider
 
     provider = OpenAICompatibleProvider(

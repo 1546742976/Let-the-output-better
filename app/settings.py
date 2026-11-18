@@ -20,7 +20,10 @@ from app.harness.command import resolve_allowed_command
 
 DEFAULT_PIPELINE_PATH = Path("config") / "pipeline.yaml"
 SUPPORTED_PROVIDERS = ("mock", "openai")
-DEFAULT_WEIGHTS = {"completeness": 0.4, "format": 0.3, "grounding": 0.3}
+#: 散文输出的评分口径：去防御化是主目标，结构完整性不适用。
+PROSE_WEIGHTS = {"plainness": 0.35, "confidence": 0.3, "concision": 0.2, "preservation": 0.15}
+#: 结构化输出的评分口径：保留原有三维，另加一维通俗度。
+STRUCTURED_WEIGHTS = {"completeness": 0.3, "format": 0.25, "grounding": 0.25, "plainness": 0.2}
 # 开发者本地可能存在 .env；测试通过 OPTIMIZE_ENV_FILE=dev/null 让配置只来自默认值与环境变量。
 ENV_FILE = os.environ.get("OPTIMIZE_ENV_FILE", ".env")
 
@@ -37,8 +40,10 @@ class Settings(BaseSettings):
     fail_open: bool = Field(default=True, alias="OPTIMIZE_FAIL_OPEN")
     audit_path: str = Field(default="data/audit.jsonl", alias="AUDIT_PATH")
 
-    # harness 驱动属实验面，默认关闭；命令只能来自这里，绝不进 config/pipeline.yaml。
-    harness_enabled: bool = Field(default=False, alias="HARNESS_ENABLED")
+    # harness 驱动默认开启：任务的主路径是"先让 harness 生成，再优化其输出"。
+    # 开启不等于可执行——命令/参数仍只能来自这里，未配置任何 harness 成员时
+    # build_harness 返回 None，/v1/run 直接 503 并指回 /v1/optimize。
+    harness_enabled: bool = Field(default=True, alias="HARNESS_ENABLED")
     harness_command: str = Field(default="", alias="HARNESS_COMMAND")
     harness_args: list[str] = Field(default_factory=list, alias="HARNESS_ARGS")
     harness_allowed_commands: list[str] = Field(default_factory=list, alias="HARNESS_ALLOWED_COMMANDS")
@@ -122,10 +127,12 @@ class StepConfig(BaseModel):
     enabled: bool = True
     strict: bool = False
     prompt: str | None = None
-    weights: dict[str, float] | None = None
+    weights: dict[str, dict[str, float]] | None = None
     strip_markdown_fences: bool = True
     trim_whitespace: bool = True
     reference_style: Literal["gb-t-7714", "apa"] = "gb-t-7714"
+    #: 通俗化只在散文场景生效；结构化字段要改写需在 pipeline.yaml 显式打开。
+    prose_only: bool = True
     module: str | None = None
 
     model_config = ConfigDict(extra="allow")
@@ -134,10 +141,10 @@ class StepConfig(BaseModel):
 def default_steps() -> list[StepConfig]:
     return [
         StepConfig(name="schema"),
-        StepConfig(name="rules", weights=dict(DEFAULT_WEIGHTS)),
+        StepConfig(name="rules"),
         StepConfig(name="repair", prompt="prompts/repair.txt"),
         StepConfig(name="format", reference_style="gb-t-7714"),
-        StepConfig(name="humanize", enabled=False, prompt="prompts/humanize.txt"),
+        StepConfig(name="simplify", prompt="prompts/simplify.txt", prose_only=True),
     ]
 
 

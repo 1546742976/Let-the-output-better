@@ -83,7 +83,7 @@ class TestRuntimeConfig:
 
     def test_step_flags_match_pipeline_defaults(self, client: TestClient):
         config = client.get("/v1/config").json()
-        assert config["steps"]["humanize"]["enabled"] is False
+        assert config["steps"]["simplify"]["enabled"] is True
         assert config["steps"]["schema"]["enabled"] is True
         assert config["steps"]["schema"]["strict"] is False
         assert config["reference_style"] == "gb-t-7714"

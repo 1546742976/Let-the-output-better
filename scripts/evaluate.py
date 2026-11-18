@@ -30,17 +30,18 @@ from app.optimizer import optimize  # noqa: E402
 from app.optimizer.context import StepContext  # noqa: E402
 from app.optimizer.steps.references import is_compliant  # noqa: E402
 from app.optimizer.steps.rules import RulesStep, normalize_text, numeric_tokens  # noqa: E402
+from app.optimizer.steps.simplify import check_boundaries  # noqa: E402
+from app.plain import qualifications  # noqa: E402
 from app.providers import build_provider  # noqa: E402
 from app.schemas import resolve_schema  # noqa: E402
 from app.settings import (  # noqa: E402
-    DEFAULT_WEIGHTS,
     PipelineConfig,
     Settings,
     StepConfig,
     load_pipeline_config,
 )
 
-ALL_STEPS = ("schema", "rules", "repair", "format", "humanize")
+ALL_STEPS = ("schema", "rules", "repair", "format", "simplify")
 
 
 def config_with(enabled: tuple[str, ...], *, audit: bool = True) -> PipelineConfig:
@@ -99,6 +100,26 @@ def facts_preserved(sample: dict[str, Any], final: Any) -> tuple[bool, list[str]
     return not missing, missing
 
 
+def defensive_writing_stats(sample: dict[str, Any], final: Any) -> dict[str, int | bool]:
+    """研究边界是否整体保住、无据限定清掉几条。
+
+    边界判定直接调用采纳闸门的 `check_boundaries`：评估口径与执行口径必须是同一份逻辑，
+    否则报告里的"误删 0%"只是在度量另一套规则。
+    """
+    before = str(sample.get("raw_output", ""))
+    after = final if isinstance(final, str) else json.dumps(final, ensure_ascii=False)
+    source = sample.get("input_text") or None
+    items = qualifications(before, source)
+    ungrounded = [str(item["text"]) for item in items if item["verdict"] == "ungrounded"]
+    haystack = normalize_text(after)
+    return {
+        "boundary_total": sum(1 for item in items if item["verdict"] in ("boundary", "unverified")),
+        "boundary_kept": check_boundaries(before, after, source) is None,
+        "ungrounded_total": len(ungrounded),
+        "ungrounded_removed": sum(1 for text in ungrounded if normalize_text(text) not in haystack),
+    }
+
+
 def reference_compliance(final: Any, style: str) -> tuple[int, int]:
     """只统计 `references` 数组：`reference` Schema 返回字段对象，没有可直接校验的字符串。"""
     if not isinstance(final, dict):
@@ -115,27 +136,37 @@ def percentile(values: list[float], ratio: float) -> float:
     return float(ordered[index])
 
 
-async def rescore(settings: Settings, provider, sample: dict[str, Any], text: str) -> float | None:
-    """用同一套规则给文本打分（只跑 schema + rules，不写审计），使优化前后得分可比。"""
+async def rescore(
+    settings: Settings, provider, sample: dict[str, Any], text: str
+) -> tuple[float | None, dict[str, float | None]]:
+    """用同一套规则给文本打分（只跑 schema + rules，不写审计），使优化前后得分可比。
+
+    同时返回维度明细，通俗度才能与总分用完全相同的口径测量。
+    """
     result = await optimize(
         text,
-        schema=sample.get("schema") or "paper",
+        schema=sample.get("schema", "paper"),
         instruction=sample.get("instruction", ""),
         input_text=sample.get("input_text", ""),
         provider=provider,
         settings=settings,
         config=config_with(("schema", "rules"), audit=False),
     )
-    return result.score
+    return result.score, result.dimensions
 
 
-async def score_raw_baseline(settings: Settings, sample: dict[str, Any], raw_output: str, style: str) -> float | None:
-    """优化前得分：与 ``strict_validate`` 同一判据，原始结构直接进 ``rules`` 计分。
+async def score_raw_baseline(
+    settings: Settings, sample: dict[str, Any], raw_output: str, style: str
+) -> tuple[float | None, dict[str, float | None]]:
+    """优化前得分与维度：与 ``strict_validate`` 同一判据，原始结构直接进 ``rules`` 计分。
 
     ``rescore()`` 会先跑 SchemaStep，别名映射与类型归一已经把优化器的收益算进了
     「优化前」，同一评分口径下分差恒等于 0（实测 +0.005）。这里有意跳过 SchemaStep：
     JSON 解析不了就按无结构计分，解析得出但字段名/类型不合规则按原始形态计分，
     与「下游程序不经任何处理能否直接消费」这条判据对齐。
+
+    维度一并返回：通俗度与自信度的"较优化前"必须与得分用同一判据测量，否则又是
+    两套口径各说各话。
     """
     model_cls = resolve_schema(sample.get("schema") or "paper")
     parsed: dict[str, Any] | None = None
@@ -155,9 +186,11 @@ async def score_raw_baseline(settings: Settings, sample: dict[str, Any], raw_out
         parsed=parsed,
         text=None if parsed is not None else raw_output,
     )
-    step = RulesStep(StepConfig(name="rules", weights=dict(DEFAULT_WEIGHTS), reference_style=style), settings)
+    # 不传权重表：rules 会按场景取 app.settings 里的 PROSE/STRUCTURED 常量，
+    # 写死一份只会和默认口径分叉（main 上那份三维表就是这么过期的）。
+    step = RulesStep(StepConfig(name="rules", reference_style=style), settings)
     await step.run(ctx)
-    return ctx.score
+    return ctx.score, dict(ctx.dimensions)
 
 
 def load_dataset(path: Path) -> list[dict[str, Any]]:
@@ -177,8 +210,9 @@ async def evaluate(args: argparse.Namespace) -> int:
     settings = Settings(provider=args.provider, audit_path=args.audit)
     provider = build_provider(settings)
     pipeline = load_pipeline_config(args.config) if args.config else PipelineConfig()
-    if args.humanize:
-        pipeline = pipeline.with_step("humanize", enabled=True)
+    if args.simplify:
+        # 散文改写本就默认开启；这个开关的作用是允许改写结构化字段。
+        pipeline = pipeline.with_step("simplify", prose_only=False)
     style = next(
         (step.reference_style for step in pipeline.steps if step.name == "format"),
         "gb-t-7714",
@@ -199,9 +233,9 @@ async def evaluate(args: argparse.Namespace) -> int:
 
     rows: list[dict[str, Any]] = []
     for sample in samples:
-        schema_name = sample.get("schema") or "paper"
+        schema_name = sample.get("schema", "paper")
         before_strict = strict_validate(sample["raw_output"], schema_name)
-        before_score = await score_raw_baseline(settings, sample, sample["raw_output"], style)
+        before_score, before_dims = await score_raw_baseline(settings, sample, sample["raw_output"], style)
         result = await optimize(
             sample["raw_output"],
             schema=schema_name,
@@ -215,11 +249,14 @@ async def evaluate(args: argparse.Namespace) -> int:
         )
         if isinstance(result.final_output, dict):
             dumped = json.dumps(result.final_output, ensure_ascii=False)
-            after_score = await rescore(settings, provider, sample, dumped)
+            after_score, after_dims = await rescore(settings, provider, sample, dumped)
         else:
-            after_score = result.score
+            # 散文输出必须按改写后的文本重新测量：rules 跑在 simplify 之前，
+            # 直接沿用 result.dimensions 会把"改前"的分数当成"改后"。
+            after_score, after_dims = await rescore(settings, provider, sample, str(result.final_output))
         fields_ok, field_problems = fields_match(result.final_output, sample.get("expect") or {})
         facts_ok, missing_numbers = facts_preserved(sample, result.final_output)
+        defensive = defensive_writing_stats(sample, result.final_output)
         ref_hits, ref_total = reference_compliance(result.final_output, style)
         expect_valid = (sample.get("expect") or {}).get("valid")
         rows.append(
@@ -232,10 +269,13 @@ async def evaluate(args: argparse.Namespace) -> int:
                 "expect_matched": expect_valid == result.valid,
                 "score_before": before_score,
                 "score_after": after_score,
+                "plainness_before": before_dims.get("plainness"),
+                "plainness_after": after_dims.get("plainness"),
                 "fields_ok": fields_ok,
                 "field_problems": "; ".join(field_problems),
                 "facts_ok": facts_ok,
                 "missing_numbers": ";".join(missing_numbers),
+                **defensive,
                 "reference_hits": ref_hits,
                 "reference_total": ref_total,
                 "repaired": result.repaired,
@@ -265,6 +305,10 @@ def metric_table(rows: list[dict[str, Any]], latency_budget_ms: int) -> list[tup
     facts_rate = sum(1 for r in changed if r["facts_ok"]) / len(changed) if changed else 1.0
     scores_before = [r["score_before"] for r in rows if r["score_before"] is not None]
     scores_after = [r["score_after"] for r in rows if r["score_after"] is not None]
+    plain_before = [r["plainness_before"] for r in rows if r["plainness_before"] is not None]
+    plain_after = [r["plainness_after"] for r in rows if r["plainness_after"] is not None]
+    plain_delta = statistics.fmean(plain_after) - statistics.fmean(plain_before) if plain_before else 0.0
+    plain_mean_after = statistics.fmean(plain_after) if plain_after else 0.0
     mean_delta = (
         statistics.fmean(scores_after) - statistics.fmean(scores_before) if scores_before and scores_after else 0.0
     )
@@ -275,6 +319,13 @@ def metric_table(rows: list[dict[str, Any]], latency_budget_ms: int) -> list[tup
     p95_norepair = percentile([r["ms"] for r in rows if not r["repaired"]], 0.95)
     degraded_rate = sum(1 for r in rows if r["degraded"]) / total
     expect_rate = sum(1 for r in rows if r["expect_matched"]) / total
+    with_boundary = [r for r in rows if r["boundary_total"]]
+    boundary_loss = (
+        sum(1 for r in with_boundary if not r["boundary_kept"]) / len(with_boundary) if with_boundary else 0.0
+    )
+    ungrounded_total = sum(r["ungrounded_total"] for r in rows)
+    ungrounded_gone = sum(r["ungrounded_removed"] for r in rows)
+    ungrounded_rate = ungrounded_gone / ungrounded_total if ungrounded_total else 1.0
 
     return [
         (
@@ -293,6 +344,24 @@ def metric_table(rows: list[dict[str, Any]], latency_budget_ms: int) -> list[tup
             facts_rate == 1.0,
         ),
         ("平均分变化", f"{mean_delta:+.3f}", "≥ +0.1", mean_delta >= 0.1),
+        (
+            "通俗度（plainness）",
+            f"{plain_mean_after:.3f}（较优化前 {plain_delta:+.3f}）",
+            "均值 ≥ 0.8",
+            plain_mean_after >= 0.8,
+        ),
+        (
+            "误删研究边界比例",
+            f"{boundary_loss:.1%}（含真实边界的样本 {len(with_boundary)} 条）",
+            "0%",
+            boundary_loss == 0.0,
+        ),
+        (
+            "无据限定清除率",
+            f"{ungrounded_rate:.1%}（{ungrounded_gone}/{ungrounded_total} 句）",
+            "≥ 90%",
+            ungrounded_rate >= 0.90,
+        ),
         (
             "修复成功率",
             "未触发" if adoption is None else f"{adoption:.1%}（{len(adopted)}/{len(triggered)}）",
@@ -336,12 +405,17 @@ def write_report(args: argparse.Namespace, rows: list[dict[str, Any]], style: st
         "",
         "## 逐条结果",
         "",
-        "| id | schema | 优化前 | 优化后 | 得分前→后 | 关键字段 | 事实保持 | 修复 | 降级 |",
-        "| ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ |",
+        "| id | schema | 优化前 | 优化后 | 得分前→后 | 通俗度前→后 | 关键字段 | 事实保持 | 修复 | 降级 |",
+        "| ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ |",
     ]
     for row in rows:
         score_before = "-" if row["score_before"] is None else f"{row['score_before']:.2f}"
         score_after = "-" if row["score_after"] is None else f"{row['score_after']:.2f}"
+        plain_pair = (
+            "无此维度"
+            if row["plainness_before"] is None or row["plainness_after"] is None
+            else f"{row['plainness_before']:.2f}→{row['plainness_after']:.2f}"
+        )
         if row["fields_ok"] is None:
             fields = "无断言"
         elif row["fields_ok"]:
@@ -349,13 +423,14 @@ def write_report(args: argparse.Namespace, rows: list[dict[str, Any]], style: st
         else:
             fields = f"未通过（{row['field_problems']}）"
         lines.append(
-            "| {id} | {schema} | {before} | {after} | {sb}→{sa} | {fields} | {facts} | {repair} | {deg} |".format(
+            "| {id} | {schema} | {before} | {after} | {sb}→{sa} | {plain} | {fields} | {facts} | {repair} | {deg} |".format(
                 id=row["id"],
                 schema=row["schema"],
                 before="valid" if row["before_strict_valid"] else "invalid",
                 after="valid" if row["after_valid"] else "invalid",
                 sb=score_before,
                 sa=score_after,
+                plain=plain_pair,
                 fields=fields,
                 facts="通过" if row["facts_ok"] else f"未通过（{row['missing_numbers']}）",
                 repair=("采纳" if row["repair_adopted"] else "拒绝" if row["repaired"] else "未触发"),
@@ -371,6 +446,12 @@ def write_report(args: argparse.Namespace, rows: list[dict[str, Any]], style: st
             "- 平均分变化使用同一规则口径：类型归一与别名映射在 `schema` 步骤内完成，"
             "原始输出一旦可解析即已享受同等归一，因此得分增益有限；"
             "本项目的收益主要体现在 Schema 合规率与引用格式合规率上。"
+        )
+    if "无据限定清除率" in unmet:
+        lines.append(
+            "- 未清除的那句是**纯文字性真实边界**（“受制于算力，其有效性有待进一步验证”）：句中既无数字也无领域名词，"
+            "按“零指称即无据”被判为 ungrounded。这是指称启发式的已知局限而非漏删套话——"
+            "要把它当边界保护，得让泛词参与匹配，代价是太极话也会一起被保护。"
         )
     if "修复成功率" in unmet:
         lines.append(
@@ -405,7 +486,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--audit", default=str(ROOT / "data" / "audit.jsonl"))
     parser.add_argument("--timeout-ms", type=int, default=8000)
     parser.add_argument("--latency-budget-ms", type=int, default=300, help="不修复时的 P95 延迟目标")
-    parser.add_argument("--humanize", action="store_true", help="评估时开启拟人化重写")
+    parser.add_argument("--simplify", action="store_true", help="评估时额外开启结构化字段的通俗化改写")
     parser.add_argument("--live", action="store_true", help="调用模型重新生成 raw_output")
     return parser.parse_args(argv)
 

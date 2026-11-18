@@ -99,13 +99,13 @@ class TestOptimizeEndpoint:
         assert body["final_output"] == raw
         assert body["degraded"] is False
 
-    def test_options_can_enable_humanize_per_request(self, client):
+    def test_options_can_enable_simplify_per_request(self, client):
         text = "值得注意的是，本文方法充分表明具有显著的性能优势和广阔的应用前景。"
         body = client.post(
             "/v1/optimize",
-            json={"raw_output": text, "options": {"humanize": True, "score": True}},
+            json={"raw_output": text, "options": {"simplify": True, "score": True}},
         ).json()
-        assert "humanize" in [step["name"] for step in body["steps"]]
+        assert "simplify" in [step["name"] for step in body["steps"]]
         assert body["final_output"] != text
 
     def test_options_can_disable_format_step(self, client):

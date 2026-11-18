@@ -1,4 +1,8 @@
-"""``rules`` 步骤：字段完整度、格式合规、与输入一致性三维加权计分。
+"""``rules`` 步骤：确定性加权计分。
+
+散文输出按 **plainness / concision / preservation** 计分——本项目的目标是把
+过度防御与晦涩的表达改短、改懂。结构化输出按 **completeness / format /
+grounding / plainness** 计分，三维结构指标沿用原口径，另加一维通俗度。
 
 全程不依赖模型调用，同一输入必得同一得分，可单测、可复现（README §2）。
 """
@@ -16,13 +20,17 @@ from app.optimizer.steps import register_step
 from app.optimizer.steps.base import BaseStep, StepResult
 from app.optimizer.steps.references import is_compliant
 from app.optimizer.steps.schema import is_filled
-from app.settings import DEFAULT_WEIGHTS
+from app.plain import report
+from app.settings import PROSE_WEIGHTS, STRUCTURED_WEIGHTS
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 _YEAR = re.compile(r"\b(?:1[89]|20)\d{2}\b")
 _WORD = re.compile(r"[A-Za-z]{3,}|[一-鿿]{2,}")
 _LEFTOVER_SPLIT = re.compile(r"[、;；]")
 _GREETING = re.compile(r"^(好的[，,！!]?)|(希望对您有帮助)|(请随时告诉我)|(如有需要)")
+
+#: 结构化输出里不参与通俗度评估的字段：引用串与标识符不该用日常措辞衡量。
+_NON_NARRATIVE = frozenset({"doi", "type", "year", "value", "baseline", "unit"})
 
 MAX_TITLE = 300
 MAX_LIST_ITEM = 200
@@ -70,34 +78,51 @@ class RulesStep(BaseStep):
 
     async def run(self, ctx: StepContext) -> StepResult:
         started = time.perf_counter()
-        weights = dict(DEFAULT_WEIGHTS)
-        if self.config is not None and self.config.weights:
-            weights.update(self.config.weights)
-
+        prose = ctx.parsed is None
+        weights = self._weights(prose)
         style = self.config.reference_style if self.config is not None else "gb-t-7714"
-        completeness = self._completeness(ctx)
-        format_score = self._format_compliance(ctx, style)
-        grounding = self._grounding(ctx) if ctx.input_text.strip() else None
 
-        dimensions = {"completeness": completeness, "format": format_score, "grounding": grounding}
+        language = report(self._narrative(ctx), ctx.input_text or None)
+        preservation = self._grounding(ctx) if ctx.input_text.strip() else None
+
+        if prose:
+            dimensions: dict[str, float | None] = {
+                "plainness": language.plainness,
+                "confidence": language.confidence,
+                "concision": language.concision,
+                "preservation": preservation,
+            }
+        else:
+            dimensions = {
+                "completeness": self._completeness(ctx),
+                "format": self._format_compliance(ctx, style),
+                "grounding": preservation,
+                "plainness": language.plainness,
+            }
+
         ctx.dimensions = dimensions
         scored = {key: value for key, value in dimensions.items() if value is not None}
-        total_weight = sum(weights.get(key, 0.0) for key in scored)
+        # 必须用 fsum 而不是 sum：sum() 自 3.12 起改用补偿求和，同一组权重在 3.11 上
+        # 少 1 ULP（0.9999999999999999），恰好把 0.6125 这类值推到 round() 的两可边沿，
+        # 得分就会随解释器版本变 0.001——"确定性可复现评分"不允许这种事。
+        total_weight = math.fsum(weights.get(key, 0.0) for key in scored)
         score = (
-            sum(weights.get(key, 0.0) * value for key, value in scored.items()) / total_weight if total_weight else 0.0
+            math.fsum(weights.get(key, 0.0) * value for key, value in scored.items()) / total_weight
+            if total_weight
+            else 0.0
         )
         ctx.score = round(score, 3)
         threshold = ctx.settings.score_threshold
         passed = ctx.valid and ctx.score >= threshold
 
         weak = [f"{key}={value:.2f}" for key, value in scored.items() if value < threshold]
-        reason = ""
+        reason = language.summary()
         if not ctx.valid:
             reason = "Schema 校验未通过"
         elif not passed:
-            reason = f"得分 {ctx.score:.2f} 低于阈值 {threshold:.2f}（{', '.join(weak)}）"
-        elif grounding is None:
-            reason = "未提供原始材料，一致性维度不参与计分"
+            reason = f"得分 {ctx.score:.2f} 低于阈值 {threshold:.2f}（{', '.join(weak)}）｜{language.summary()}"
+        elif preservation is None:
+            reason = f"{language.summary()}；未提供原始材料，一致性维度不参与计分"
         return StepResult(
             name=self.name,
             passed=passed,
@@ -105,6 +130,27 @@ class RulesStep(BaseStep):
             reason=reason,
             ms=self.elapsed_ms(started),
         )
+
+    def _weights(self, prose: bool) -> dict[str, float]:
+        """按场景取权重，允许 pipeline.yaml 分组覆盖。"""
+        base = dict(PROSE_WEIGHTS if prose else STRUCTURED_WEIGHTS)
+        configured = self.config.weights if self.config is not None else None
+        if configured:
+            override = configured.get("prose" if prose else "structured")
+            if override:
+                base.update(override)
+        return base
+
+    @staticmethod
+    def _narrative(ctx: StepContext) -> str:
+        """参与通俗度评估的文本：散文全文，或结构化里的叙述字段。
+
+        引用串与标识符不算叙述——用日常措辞标准去要求 GB/T 引用是错的度量。
+        """
+        if ctx.parsed is None:
+            return ctx.text or ctx.raw_output
+        parts = [value for key, value in ctx.parsed.items() if isinstance(value, str) and key not in _NON_NARRATIVE]
+        return "。".join(parts)
 
     def _completeness(self, ctx: StepContext) -> float:
         if ctx.schema is None:
