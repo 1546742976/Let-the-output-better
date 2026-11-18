@@ -576,6 +576,8 @@ pytest -q
 pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 ```
 
+本节下文引用的**用例数与综合覆盖率由 CI 硬校验**：Windows job 把这两个数字与同一次运行的 `junit.xml`/`coverage.json` 比对，漂移即失败（见 `.github/CI.md`）。加了用例或改了步骤却忘了同步这里，CI 会直接报出实跑值。分数增益、修复率等研究目标不在硬校验范围内——它们取决于数据集与模型，只呈现于评估报告。
+
 测试覆盖范围：
 
 - 步骤单测：给定输入断言 `passed` 与 `score`，不触网。
