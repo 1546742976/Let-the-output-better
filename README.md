@@ -334,8 +334,8 @@ class CcfVenueStep(BaseStep):
 局限与注意点：
 
 - 页面是**本地调试工具，无鉴权**，不要暴露到不可信网络。
-- 历史只读 `AUDIT_PATH` 尾部（单次最多 200 条）；多进程共用同一审计文件时，列表会混入其它来源的记录。
-- `request_id` 由进程内计数器生成，多进程会产生重号，因此页面以审计文件的**行号**（`line_no`）作为选中依据。
+- 历史只读 `AUDIT_PATH` 尾部（单次最多 200 条）；反向**按块读取**、只物化窗口所需行，不再把整个审计文件载入内存。跨块半行靠 `carry` 拼接，超长单行也不丢。读到文件头时 `total_exact=true`、`total_lines` 是全量；大文件在触头前就填满窗口时 `total_exact=false`、`total_lines` 只是下界，页面据此把"审计条数"显示为 `≥ N`。多进程共用同一审计文件时，列表仍会混入其它来源的记录。
+- `request_id` 含进程 nonce + 进程内序号（`req_日期_nonce_序号`），多进程并行不再重号；页面仍以审计文件的**行号**（`line_no`）作为选中依据——行号定位到具体一行更稳。
 - 步骤开关默认取 `pipeline.yaml` 的取值，提交时显式发送布尔值，不再沿用“未设置即跟随配置”的三态语义。
 - 模型输出与审计内容一律按纯文本渲染，测试用例断言页面不存在 `innerHTML` 等注入写法。
 - diff 在前端计算，超过 400 行自动降级为只显示优化后结果。
@@ -585,8 +585,10 @@ pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 - 管线单测：异常注入验证 fail-open 与超时行为。
 - 拟人化单测：以 mock 重写结果断言数值、引用与关键字段在重写前后不变。
 - 回归测试：以金标集的 `final_output` 作为基线快照（`tests/golden_baseline.json`，`OPTIMIZE_UPDATE_GOLDEN=1 pytest` 可重写）。
+- harness 装配单测：以桩 `scan` 结果与假成员覆盖 `_detected()` 过滤、`HarnessRegistry` 选择与级联关闭、`build_harness` 多源合并，验证装配逻辑且全程不 exec。
+- 引用方言单测：断言姓名判定否决、类型推断、`render_apa` 各作者数与 `parse_citation` 失败退回等确定性分支。
 
-v0.3 实测：263 项用例通过，`app/` 行与分支综合覆盖率 89.91%（win32；本机 3.12.10 与 3.13.15 两套隔离环境结果一致，CI 门槛 80%）。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高），与 Python 版本无关；README 历史里的 259 项 / 91.06%、262 项 / 89.61% 均为对应提交时的实测值，随步骤与用例增减而变。当前覆盖率最低的两处是 `app/harness/__init__.py`（65%）与 `app/optimizer/steps/references.py`（83%）：前者是因为测试一律置 `HARNESS_DETECT=false`，发现式装配 `_detected()` 与多 profile 的 `HarnessRegistry` 分支没有被执行；后者是引用解析的各方言分支尚未逐一覆盖。除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
+v0.3 实测：299 项用例通过，`app/` 行与分支综合覆盖率 93.21%（win32；本机 3.12.10 与 3.13.15 两套隔离环境结果一致，CI 门槛 80%）。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高），与 Python 版本无关；README 历史里的 259 项 / 91.06%、262 项 / 89.61% 等均为对应提交时的实测值，随步骤与用例增减而变。此前的两处覆盖率短板已补：`app/harness/__init__.py` 从 65% 提到 100%（`tests/test_harness_registry.py` 用桩 `scan` 结果与假成员覆盖发现式过滤、`HarnessRegistry` 选择与级联关闭、`build_harness` 多源合并，全程不 exec），`app/optimizer/steps/references.py` 从 83% 提到 99%（`tests/test_step_references.py` 补齐姓名判定五类否决、无年份 APA 段、类型推断、`render_apa` 各作者数与解析失败退回）。当前最低的是 `app/harness/detect.py`（85%）——未覆盖的多是 Windows PE 头校验等只在真机装有对应 CLI 时才走到的分支，CI 与本机都无法确定性地触发。除 `tests/test_providers.py` 与 `tests/test_harness_api.py` 中被 `respx` 拦截的模拟响应外，测试全程不产生真实网络请求。`tests/test_harness_detect.py` 用与真实机器同形的假 npm 树验证发现器，并断言**扫描阶段一次子进程都不启动**；harness 各层用本机解释器作桩，因此在没有安装任何 harness 的 CI 上同样可跑。
 
 ## 14. 版本规划
 

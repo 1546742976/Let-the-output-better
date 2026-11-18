@@ -117,10 +117,12 @@ function renderOptionToggles() {
   box.appendChild(timeout);
 }
 
-function renderEnv(auditTotal) {
+function renderEnv(auditTotal, totalExact = true) {
   const list = $("env");
   clear(list);
   const config = state.config || {};
+  const auditLabel =
+    auditTotal === undefined ? "-" : totalExact ? `${auditTotal} 条` : `≥ ${auditTotal} 条（尾部窗口）`;
   const rows = [
     ["provider", config.provider || "-"],
     ["score 阈值", config.score_threshold === undefined ? "-" : config.score_threshold],
@@ -128,7 +130,7 @@ function renderEnv(auditTotal) {
     ["修复上限", config.max_repair_retries ?? "-"],
     ["fail_open", String(config.fail_open)],
     ["引用风格", config.reference_style || "-"],
-    ["审计条数", auditTotal === undefined ? "-" : `${auditTotal} 条`],
+    ["审计条数", auditLabel],
   ];
   rows.forEach(([key, value]) => {
     list.appendChild(el("dt", null, key));
@@ -228,8 +230,10 @@ async function loadHistory() {
   try {
     const data = await getJSON("/v1/audits?limit=60");
     state.items = data.items || [];
-    foot.textContent = `${state.items.length} / ${data.total_lines} 条${data.skipped ? ` · 跳过损坏 ${data.skipped}` : ""}`;
-    renderEnv(data.total_lines);
+    const exact = data.total_exact !== false;
+    const totalText = exact ? `${data.total_lines} 条` : `尾部 ${data.total_lines} 条（窗口下界）`;
+    foot.textContent = `${state.items.length} / ${totalText}${data.skipped ? ` · 跳过损坏 ${data.skipped}` : ""}`;
+    renderEnv(data.total_lines, exact);
   } catch (error) {
     state.items = [];
     foot.textContent = `历史读取失败：${error.message}`;
