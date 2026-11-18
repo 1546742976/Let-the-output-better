@@ -44,7 +44,6 @@ const STEP_HUE = {
   rules: "--green-bright",
   repair: "--yellow",
   format: "--red-bright",
-  simplify: "--purple-bright",
   simplify: "--orange",
 };
 const STEP_OPTION = { schema: "strict", rules: "rules", repair: "repair", format: "format", simplify: "simplify" };
@@ -904,11 +903,36 @@ function splitRow(pair) {
   return node;
 }
 
+function effectiveDiffView() {
+  return state.diffView === "split" && !state.diffDegraded && state.diffRows.length ? "split" : "unified";
+}
+
+/* 选项的高亮/禁用必须与真正渲染的视图同源：降级或空对照时并排不可用，
+   但保留用户偏好，回到正常记录时自动恢复并排。 */
+function syncDiffControls() {
+  const canSplit = Boolean(state.diffRows.length) && !state.diffDegraded;
+  const view = effectiveDiffView();
+  document.querySelectorAll("#diff-view .seg").forEach((button) => {
+    const isSplit = button.dataset.view === "split";
+    button.disabled = isSplit && !canSplit;
+    button.classList.toggle("is-on", button.dataset.view === view);
+    button.setAttribute("aria-pressed", String(button.dataset.view === view));
+    if (isSplit) {
+      button.title = canSplit
+        ? ""
+        : state.diffDegraded
+          ? `行数超过 ${MAX_DIFF_LINES}，已跳过逐行 diff`
+          : "运行优化后可切换并排";
+    }
+  });
+}
+
 function paintDiff() {
   const box = $("diff");
   clear(box);
   const rows = state.diffRows;
-  const split = state.diffView === "split" && !state.diffDegraded;
+  const split = effectiveDiffView() === "split";
+  syncDiffControls();
   box.classList.toggle("is-split", split);
   if (state.diffNote) box.appendChild(el("div", "diff-note", state.diffNote));
   if (!rows.length) {
@@ -933,12 +957,10 @@ function renderDiff(record) {
   state.diffRecord = record;
   const before = prettyText(record.raw_output).split("\n");
   const after = prettyText(record.final_output).split("\n");
-  const splitButton = document.querySelector('#diff-view [data-view="split"]');
   state.diffNote = "";
   if (before.length === 1 && !before[0] && after.length === 1 && !after[0]) {
     state.diffRows = [];
     state.diffDegraded = false;
-    splitButton.disabled = true;
     paintDiff();
     return;
   }
@@ -946,23 +968,16 @@ function renderDiff(record) {
     state.diffRows = after.map((line, index) => ({ t: "eq", v: line, no: index + 1 }));
     state.diffDegraded = true;
     state.diffNote = `行数超过 ${MAX_DIFF_LINES}，跳过逐行 diff，仅展示优化后结果。`;
-    splitButton.disabled = true;
-    splitButton.title = `行数超过 ${MAX_DIFF_LINES}，已跳过逐行 diff`;
     paintDiff();
     return;
   }
   state.diffRows = diffLines(before, after);
   state.diffDegraded = false;
-  splitButton.disabled = false;
-  splitButton.title = "";
   paintDiff();
 }
 
 function setDiffView(view) {
   state.diffView = view;
-  document.querySelectorAll("#diff-view .seg").forEach((button) => {
-    button.classList.toggle("is-on", button.dataset.view === view);
-  });
   paintDiff();
 }
 
