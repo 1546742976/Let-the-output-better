@@ -150,6 +150,49 @@ class TestReadAuditTail:
         write_records(path, [{"request_id": "a"}, {"request_id": "b"}])
         assert len(viewer.read_audit_tail(path, limit=0)["items"]) == 1
 
+    def test_small_file_line_count_is_exact(self, tmp_path: Path):
+        """读到文件头时 total_exact 为真，total_lines 是全文件非空行数。"""
+        path = tmp_path / "audit.jsonl"
+        write_records(path, [{"request_id": "1"}, {"request_id": "2"}, "   ", {"request_id": "3"}])
+        payload = viewer.read_audit_tail(path, limit=10)
+        assert payload["total_exact"] is True
+        assert payload["total_lines"] == 3
+
+    def test_window_truncated_but_bof_reached_is_still_exact(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """窗口被 scan_cap 截断，但整文件在一块内读完并触到文件头：total_lines 仍是全量而非窗口大小。"""
+        path = tmp_path / "audit.jsonl"
+        write_records(path, [{"request_id": f"req_{index}"} for index in range(50)])
+        monkeypatch.setattr(viewer, "MAX_SCANNED_LINES", 10)  # wanted=2 → scan_cap=max(20,10)=20 < 50
+        payload = viewer.read_audit_tail(path, limit=2)
+        assert payload["total_exact"] is True
+        assert payload["total_lines"] == 50  # 全量，不受窗口=20 影响
+        assert payload["scanned"] == 20  # 窗口只留最后 20 行
+        assert [item["line_no"] for item in payload["items"]] == [50, 49]
+
+    def test_large_file_marks_total_as_window_lower_bound(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """小读块下窗口在触及文件头前就被 scan_cap 填满，未读到文件头：total_exact 转假、total_lines 是下界。"""
+        path = tmp_path / "audit.jsonl"
+        write_records(path, [{"request_id": f"req_{index}"} for index in range(50)])
+        monkeypatch.setattr(viewer, "READ_BLOCK", 40)  # 每块约 1.8 行，凑满窗口时仍距文件头很远
+        monkeypatch.setattr(viewer, "MAX_SCANNED_LINES", 10)
+        payload = viewer.read_audit_tail(path, limit=2)  # wanted=2 → scan_cap=max(20,10)=20
+        assert payload["total_exact"] is False
+        # 未读到文件头，total_lines 只是已扫到的下界，必然小于全文件 50 行
+        assert 20 <= payload["total_lines"] < 50
+        assert len(payload["items"]) == 2
+
+    def test_line_longer_than_read_block_is_reassembled(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """超长单行跨多个读取块时，靠 carry 拼接，仍是一条完整记录。"""
+        monkeypatch.setattr(viewer, "READ_BLOCK", 16)
+        path = tmp_path / "audit.jsonl"
+        big = {"request_id": "big", "blob": "x" * 400}
+        path.write_text(json.dumps(big, ensure_ascii=False) + "\n", encoding="utf-8")
+        payload = viewer.read_audit_tail(path, limit=5)
+        assert len(payload["items"]) == 1
+        assert payload["items"][0]["request_id"] == "big"
+        assert payload["items"][0]["blob"] == "x" * 400
+        assert payload["total_exact"] is True
+
 
 class TestAuditCarriesInputText:
     def test_record_written_by_a_request_includes_input_text(self, client: TestClient, audit_file: Path):

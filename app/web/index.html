@@ -1,154 +1,330 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>输出优化台 · Post-hoc 二次优化</title>
-    <script>
-      /* 首帧前定主题：classic 脚本阻塞解析，一定早于首次绘制，避免浅深切换闪屏。
-         本文件不得出现任何站外地址，命名空间声明也一律省略（内联 SVG 在 HTML 中非必需）。 */
-      (function () {
-        var stored = null;
-        try {
-          stored = window.localStorage.getItem("optimize-theme");
-        } catch (error) {
-          stored = null;
-        }
-        var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-        document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
-      })();
-    </script>
+    <meta name="color-scheme" content="light dark" />
+    <title>Output Better · Post-hoc 输出优化台</title>
     <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   </head>
   <body>
+    <svg class="sprite" aria-hidden="true" focusable="false">
+      <!-- 自有图标语言：24 网格圆头描边线稿 + 一枚实心节点圆点，呼应 wordmark 的环与中心点。 -->
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h13M4 12h8M4 17h13"/><circle cx="16.5" cy="12" r="1.7" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+      <symbol id="i-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M8.5 5.8v12.4L19 12z"/><circle cx="12.4" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.2 15.2L20 20"/><circle cx="10.5" cy="10.5" r="1.6" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-sort" viewBox="0 0 24 24"><path d="M8 5v14M8 19l-3-3M8 19l3-3M16 19V5M16 5l-3 3M16 5l3 3"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M14.5 3.5a8.5 8.5 0 1 0 6 14.5A7 7 0 0 1 14.5 3.5z"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="3"/><path d="M15.5 5.5H6.5a3 3 0 0 0-3 3v9"/><circle cx="14.5" cy="14.5" r="1.6" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.6 4.5L19 7.5"/><circle cx="19" cy="7.5" r="1.6" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/></symbol>
+      <symbol id="i-flask" viewBox="0 0 24 24"><path d="M10 3.5h4M11 3.5v5.2L5.8 18a2.2 2.2 0 0 0 2 3.2h8.4a2.2 2.2 0 0 0 2-3.2L13 8.7V3.5"/><path d="M8 14.5h8"/><circle cx="12" cy="17.5" r="1.5" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-history" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8.5h13M17 8.5l-3-3M17 8.5l-3 3M20 15.5H7M7 15.5l3-3M7 15.5l3 3"/></symbol>
+      <symbol id="i-schema" viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="3"/><path d="M8.5 8.5h4M8.5 12h7M8.5 15.5h5"/><circle cx="15.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4.5 16.5a8.5 8.5 0 1 1 15 0"/><path d="M12 16.5l3.6-4.6"/><circle cx="12" cy="16.5" r="1.6" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-build" viewBox="0 0 24 24"><path d="M4 12h4.5M15.5 12H20"/><path d="M8.5 12a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="8.5" r="1.6" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-format" viewBox="0 0 24 24"><path d="M6.5 17.5L12 5.5l5.5 12M8.7 13h6.6"/><path d="M4.5 20.5h15"/></symbol>
+      <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 4c.7 3.6 2.4 5.3 6 6-3.6.7-5.3 2.4-6 6-.7-3.6-2.4-5.3-6-6 3.6-.7 5.3-2.4 6-6z"/><circle cx="18.5" cy="17.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="5.5" cy="18.5" r="1.1" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r="1.5" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4.2L21 19.5H3z"/><path d="M12 10v4"/><circle cx="12" cy="16.8" r="1.4" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-error" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4.5 12h14M18.5 12l-5-5M18.5 12l-5 5"/><circle cx="4.5" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></symbol>
+      <symbol id="i-tune" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="1.8" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="7" cy="17" r="1.8" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 4l8 4.5-8 4.5-8-4.5z"/><path d="M4 13.5l8 4.5 8-4.5"/><circle cx="12" cy="8.5" r="1.5" fill="currentColor" stroke="none"/></symbol>
+    </svg>
+
+    <div class="scrim" id="scrim" hidden></div>
+
+    <header class="appbar" id="appbar">
+      <div class="appbar-side">
+        <button type="button" class="icon-btn drawer-btn" id="menu-btn" title="历史会话" aria-label="打开历史会话">
+          <svg class="icon" aria-hidden="true"><use href="#i-menu"></use></svg>
+        </button>
+        <a class="wordmark" href="#section-hero" id="wordmark">
+          <span class="gmark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" focusable="false">
+              <g fill="none" stroke-width="7" transform="rotate(-90 24 24)">
+                <circle cx="24" cy="24" r="16" stroke="#4285f4" stroke-dasharray="22.1 78.5" stroke-dashoffset="0"></circle>
+                <circle cx="24" cy="24" r="16" stroke="#ea4335" stroke-dasharray="22.1 78.5" stroke-dashoffset="-25.1"></circle>
+                <circle cx="24" cy="24" r="16" stroke="#fbbc04" stroke-dasharray="22.1 78.5" stroke-dashoffset="-50.3"></circle>
+                <circle cx="24" cy="24" r="16" stroke="#34a853" stroke-dasharray="22.1 78.5" stroke-dashoffset="-75.4"></circle>
+              </g>
+              <circle cx="24" cy="24" r="4.5" fill="#1a73e8"></circle>
+            </svg>
+          </span>
+          <span class="wordmark-text">Output<span class="wordmark-alt">Better</span></span>
+        </a>
+        <span class="appbar-sub">Post-hoc 输出优化台</span>
+      </div>
+
+      <nav class="appnav" id="appnav" aria-label="页面分区">
+        <a class="appnav-link is-active" href="#section-hero" data-nav="section-hero">概览</a>
+        <a class="appnav-link" href="#harness-panel" data-nav="harness-panel">驱动</a>
+        <a class="appnav-link" href="#section-input" data-nav="section-input">输入</a>
+        <a class="appnav-link" href="#result-panel" data-nav="result-panel">结果</a>
+        <a class="appnav-link" href="#section-diff" data-nav="section-diff">对照</a>
+      </nav>
+
+      <div class="appbar-side appbar-end">
+        <span class="health-pill" id="health-pill" title="健康检查">
+          <span class="dot" id="health-dot"></span>
+          <span class="health-text" id="health-text">检查中</span>
+        </span>
+        <button type="button" class="icon-btn" id="theme-toggle" title="切换深色 / 浅色" aria-label="切换深色或浅色主题">
+          <svg class="icon icon-moon" aria-hidden="true"><use href="#i-moon"></use></svg>
+          <svg class="icon icon-sun" aria-hidden="true"><use href="#i-sun"></use></svg>
+        </button>
+        <button type="button" class="btn btn-filled appbar-cta" id="appbar-run">
+          <svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg>
+          <span>运行优化</span>
+        </button>
+      </div>
+    </header>
+
     <div class="app" id="app">
-      <aside class="rail" id="history-rail" aria-label="历史会话">
-        <div class="rail-top">
-          <span class="mark"></span>
+      <aside class="rail rail-left" id="history-rail" aria-label="历史会话">
+        <div class="rail-head">
+          <button type="button" class="icon-btn" id="toggle-history" title="折叠历史列表" aria-expanded="true">
+            <svg class="icon" aria-hidden="true"><use href="#i-menu"></use></svg>
+          </button>
           <span class="rail-title">历史会话</span>
-          <button type="button" class="icon-btn" id="toggle-history" aria-expanded="true" aria-label="折叠历史列表">
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 3.5 5 8l4.5 4.5" /></svg>
+          <span class="rail-count" id="rail-count">0</span>
+        </div>
+
+        <div class="rail-tools">
+          <button type="button" class="compose" id="new-run">
+            <span class="compose-plus" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5.5v13M5.5 12h13"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/></svg>
+            </span>
+            <span>新建优化</span>
+          </button>
+          <div class="searchbox">
+            <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+            <input type="search" id="history-search" placeholder="搜索输出、指令或 request_id" autocomplete="off" aria-label="搜索历史" />
+          </div>
+          <button type="button" class="sort-btn" id="history-sort" title="切换排序">
+            <svg class="icon" aria-hidden="true"><use href="#i-sort"></use></svg>
+            <span id="history-sort-label">最新优先</span>
           </button>
         </div>
-        <button type="button" class="new" id="new-run">＋ 新建优化</button>
-        <div class="list" id="history-list"></div>
+
+        <div class="history-list" id="history-list"></div>
         <div class="rail-foot" id="history-foot"></div>
       </aside>
 
-      <div class="main">
-        <div class="head">
-          <span class="brand">Post-hoc 输出优化器</span>
-          <span class="hint">对 harness 输出做二次优化</span>
-          <span class="grow"></span>
-          <button type="button" class="ghost" id="theme-toggle" aria-pressed="false">深色</button>
-          <span class="dot unknown" id="health-dot" title="健康检查"></span>
-        </div>
-
-        <div class="flow">
-          <section class="turn" id="result-panel" hidden aria-label="优化结果">
-            <div class="turn-top"><span id="result-id"></span></div>
-
-            <div class="echo">
-              <b>输入</b>
-              <span id="echo-input"></span>
+      <main class="workspace" id="workspace">
+        <section class="hero" id="section-hero" aria-label="概览">
+          <div class="hero-bg" aria-hidden="true">
+            <span class="blob blob-b"></span><span class="blob blob-r"></span>
+            <span class="blob blob-y"></span><span class="blob blob-g"></span>
+            <span class="hero-dots"></span>
+          </div>
+          <div class="hero-main">
+            <div class="hero-copy">
+              <p class="eyebrow"><span class="eyebrow-bar" aria-hidden="true"></span>POST-HOC · 生成之后再优化</p>
+              <h1 class="hero-title">让模型的输出，<em>更好一点</em>。</h1>
+              <p class="hero-lede">校验、评分、修复、格式化与重写都在生成结束之后发生。事实保持不动，只把表达收拾干净。</p>
             </div>
-
-            <div class="verdict" id="verdict"></div>
-
-            <div class="card">
-              <div class="card-top">
-                <span>优化前 → 优化后</span>
-                <span class="grow"></span>
-                <span class="pill" id="diff-mode"></span>
-              </div>
-              <div class="diff" id="diff"></div>
+            <div class="hero-actions">
+              <button type="button" class="btn btn-tonal" id="sample-btn">
+                <svg class="icon" aria-hidden="true"><use href="#i-layers"></use></svg><span>填入示例</span>
+              </button>
+              <button type="button" class="btn btn-outlined" id="hero-new">
+                <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg><span>新建</span>
+              </button>
             </div>
+          </div>
 
-            <details class="dets" id="details-region">
-              <summary>详情 · 步骤 / 评分 / 变更 / 环境</summary>
-              <div class="dgrid">
-                <div>
-                  <div class="cap">步骤时间线</div>
-                  <div class="steps" id="steps"></div>
-                  <div class="cap">评分维度</div>
-                  <div class="dimensions" id="dimensions"></div>
-                </div>
-                <div>
-                  <div class="cap">运行指标</div>
-                  <div class="tags" id="meta-chips"></div>
-                  <div class="cap">变更与标记</div>
-                  <div class="tags" id="tags"></div>
-                  <div class="cap">运行环境</div>
-                  <dl class="env" id="env"></dl>
-                  <div class="errors" id="errors"></div>
-                </div>
-              </div>
-            </details>
-          </section>
+          <ol class="pipe" id="pipe" aria-label="流水线步骤"></ol>
 
-          <form class="composer" id="optimize-form" data-mode="paste">
-            <div class="mode">
-              <span class="seg" role="group" aria-label="输入方式">
-                <button type="button" class="on" id="mode-paste">粘贴输出</button>
-                <button type="button" id="mode-harness">驱动 harness</button>
+          <div class="stats" id="stats">
+            <div class="stat stat-b"><span class="stat-value" id="stat-total">–</span><span class="stat-label">审计记录</span></div>
+            <div class="stat stat-g"><span class="stat-value" id="stat-avg">–</span><span class="stat-label">平均 score</span></div>
+            <div class="stat stat-y"><span class="stat-value" id="stat-pass">–</span><span class="stat-label">通过率</span></div>
+            <div class="stat stat-p"><span class="stat-value" id="stat-ms">–</span><span class="stat-label">中位耗时</span></div>
+          </div>
+        </section>
+
+        <section class="panel panel-harness" id="harness-panel" aria-label="驱动 harness">
+          <div class="panel-head">
+            <h2><span class="head-icon hi-flask"><svg class="icon" aria-hidden="true"><use href="#i-flask"></use></svg></span>驱动 harness<span class="badge">实验面</span></h2>
+            <span class="panel-hint" id="harness-hint"></span>
+          </div>
+          <div class="field-row">
+            <label class="field field-sm">
+              <span class="field-label">harness profile</span>
+              <span class="select-wrap">
+                <select id="field-harness"></select>
+                <svg class="icon select-caret" aria-hidden="true"><use href="#i-chevron"></use></svg>
               </span>
-              <span class="hint" id="mode-hint">粘贴 harness 或模型已经产出的原文</span>
+              <span class="field-help">只能选内置项，参数由服务端常量决定</span>
+            </label>
+            <div class="field">
+              <span class="field-label">本机检测结果</span>
+              <div class="detected" id="harness-detected"></div>
+              <span class="field-help">默认不执行任何被发现的程序</span>
             </div>
+          </div>
+          <div class="prov-note" id="harness-notes"></div>
+          <label class="field">
+            <span class="field-label">task · 交给 harness 的任务</span>
+            <textarea id="field-task" rows="3" spellcheck="false" placeholder="例如：总结这篇论文的方法与结论"></textarea>
+            <span class="field-help">经 stdin 或 API 传入，不进 argv</span>
+          </label>
+          <div class="submit-row">
+            <button type="button" class="btn btn-filled" id="harness-run-btn">
+              <svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg><span>运行 harness + 二次优化</span>
+            </button>
+            <button type="button" class="btn btn-outlined" id="harness-detect-btn">
+              <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg><span>带探测重新检测</span>
+            </button>
+            <span class="status-line" id="harness-status"></span>
+          </div>
+        </section>
 
-            <label class="field only-paste">
-              <span class="flabel">raw_output · 待二次优化的原文</span>
-              <textarea id="field-raw" name="raw_output" rows="4" spellcheck="false" placeholder="把 harness 的输出原样粘贴到这里，支持 Markdown 围栏与客套话前后缀"></textarea>
+        <section class="panel" id="section-input" aria-label="输入">
+          <div class="panel-head">
+            <h2><span class="head-icon hi-schema"><svg class="icon" aria-hidden="true"><use href="#i-schema"></use></svg></span>输入</h2>
+            <span class="panel-hint">raw_output 为 harness 或模型已经产出的原文</span>
+          </div>
+          <form class="form" id="optimize-form">
+            <div class="field-row">
+              <label class="field field-sm">
+                <span class="field-label">Schema</span>
+                <span class="select-wrap">
+                  <select id="field-schema" name="schema"></select>
+                  <svg class="icon select-caret" aria-hidden="true"><use href="#i-chevron"></use></svg>
+                </span>
+              </label>
+              <label class="field">
+                <span class="field-label">instruction · 任务说明</span>
+                <input id="field-instruction" name="instruction" type="text" autocomplete="off" placeholder="抽取论文元数据，参考文献按 GB/T 7714 规范" />
+              </label>
+            </div>
+            <label class="field">
+              <span class="field-label">input_text · 原始材料</span>
+              <textarea id="field-input-text" name="input_text" rows="3" spellcheck="false" placeholder="事实溯源依据，留空则不计一致性分"></textarea>
+            </label>
+            <label class="field">
+              <span class="field-label">raw_output · 模型原始输出</span>
+              <textarea id="field-raw" name="raw_output" rows="9" spellcheck="false" placeholder="把模型输出粘贴到这里，支持 Markdown 围栏与客套话前后缀"></textarea>
             </label>
 
-            <label class="field only-harness">
-              <span class="flabel">task · 交给 harness 的任务（经 stdin 传入；命令与参数只来自服务端配置）</span>
-              <textarea id="field-task" rows="3" spellcheck="false" placeholder="例如：总结这篇论文的方法与结论"></textarea>
-            </label>
+            <div class="options-head">
+              <svg class="icon" aria-hidden="true"><use href="#i-tune"></use></svg>
+              <span>步骤开关</span>
+              <span class="options-hint">与上方流水线图联动</span>
+            </div>
+            <div class="options" id="options" role="group" aria-label="步骤开关"></div>
 
-            <input class="instr" id="field-instruction" name="instruction" type="text" placeholder="任务说明，例如：抽取论文元数据，参考文献按 GB/T 7714 规范" />
-
-            <div class="foot">
-              <select id="field-schema" name="schema" aria-label="Schema"></select>
-
-              <details class="params" id="params">
-                <summary>参数</summary>
-                <div class="pbody">
-                  <label class="field">
-                    <span class="flabel">input_text · 原始材料（事实溯源依据，留空则不计一致性分）</span>
-                    <textarea id="field-input-text" name="input_text" rows="3" spellcheck="false"></textarea>
-                  </label>
-
-                  <div class="cap">管线开关</div>
-                  <div class="options" id="options" role="group" aria-label="步骤开关"></div>
-
-                  <div class="cap">harness</div>
-                  <div class="hrow">
-                    <select id="field-harness" aria-label="harness profile"></select>
-                    <button type="button" class="ghost" id="harness-detect-btn">带探测重新检测</button>
-                  </div>
-                  <div class="detected" id="harness-detected"></div>
-                  <div class="prov-note" id="harness-notes"></div>
-                  <div class="status" id="harness-status"></div>
-                </div>
-              </details>
-
-              <button type="submit" class="primary" id="run-btn">运行优化</button>
-              <span class="status" id="form-status"></span>
+            <div class="submit-row">
+              <button type="submit" class="btn btn-filled btn-lg" id="run-btn">
+                <svg class="icon" aria-hidden="true"><use href="#i-play"></use></svg><span>运行优化</span>
+              </button>
+              <span class="kbd-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd></span>
+              <span class="status-line" id="form-status"></span>
             </div>
           </form>
-        </div>
-      </div>
+        </section>
+
+        <section class="panel panel-result" id="result-panel" hidden aria-label="优化结果">
+          <div class="panel-head">
+            <h2><span class="head-icon hi-gauge"><svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg></span>结果</h2>
+            <span class="panel-hint mono" id="result-id"></span>
+          </div>
+
+          <div class="result-top">
+            <div class="dial" id="dial">
+              <svg class="dial-svg" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+                <defs>
+                  <linearGradient id="dial-grad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#4285f4"></stop>
+                    <stop offset="34%" stop-color="#34a853"></stop>
+                    <stop offset="67%" stop-color="#fbbc04"></stop>
+                    <stop offset="100%" stop-color="#ea4335"></stop>
+                  </linearGradient>
+                </defs>
+                <circle class="dial-track" cx="60" cy="60" r="52"></circle>
+                <circle class="dial-arc" id="dial-arc" cx="60" cy="60" r="52"></circle>
+                <line class="dial-threshold" id="dial-threshold" x1="60" y1="4" x2="60" y2="16"></line>
+              </svg>
+              <span class="dial-center">
+                <span class="dial-value" id="dial-value">–</span>
+                <span class="dial-cap">score</span>
+              </span>
+            </div>
+            <div class="verdict" id="verdict"></div>
+          </div>
+
+          <div class="result-actions">
+            <button type="button" class="btn btn-tonal btn-sm" id="copy-output">
+              <svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span>复制优化后输出</span>
+            </button>
+            <button type="button" class="btn btn-text btn-sm" id="rerun-btn">
+              <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg><span>按当前开关重跑</span>
+            </button>
+            <span class="threshold-note" id="threshold-note"></span>
+          </div>
+
+          <div class="sub-head"><span>步骤时间线</span></div>
+          <div class="steps" id="steps"></div>
+          <div class="sub-head"><span>评分维度</span></div>
+          <div class="dimensions" id="dimensions"></div>
+          <div class="sub-head"><span>变更与标记</span></div>
+          <div class="tags" id="tags"></div>
+          <div class="errors" id="errors"></div>
+        </section>
+
+        <footer class="work-foot">
+          <span>本地调试台 · 无鉴权，仅绑定回环地址</span>
+          <span class="mono">PROVIDER=mock 时无需任何模型密钥</span>
+        </footer>
+      </main>
+
+      <aside class="rail rail-right" aria-label="环境与对照">
+        <section class="panel panel-flush" id="section-env">
+          <div class="panel-head">
+            <h2><span class="head-icon hi-info"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg></span>运行环境</h2>
+            <button type="button" class="icon-btn icon-btn-sm" id="refresh-env" title="重新读取配置与历史">
+              <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>
+            </button>
+          </div>
+          <dl class="env" id="env"></dl>
+        </section>
+        <section class="panel panel-grow" id="section-diff">
+          <div class="panel-head">
+            <h2><span class="head-icon hi-swap"><svg class="icon" aria-hidden="true"><use href="#i-swap"></use></svg></span>优化前 → 优化后</h2>
+            <span class="panel-hint" id="diff-mode"></span>
+          </div>
+          <div class="segmented" id="diff-view" role="group" aria-label="对照视图">
+            <button type="button" class="seg is-on" data-view="unified">统一</button>
+            <button type="button" class="seg" data-view="split">并排</button>
+          </div>
+          <div class="diff" id="diff"></div>
+        </section>
+      </aside>
+    </div>
+
+    <div class="snackbar" id="snackbar" role="status" aria-live="polite" hidden>
+      <span class="snackbar-text" id="snackbar-text"></span>
+      <button type="button" class="snackbar-action" id="snackbar-action" hidden>撤销</button>
     </div>
 
     <template id="tpl-history-item">
       <button type="button" class="history-item">
-        <span class="i1">
+        <span class="hi-top">
           <span class="dot" data-role="dot"></span>
-          <span class="kind" data-role="schema"></span>
-          <span class="score" data-role="score"></span>
+          <span class="hi-schema" data-role="schema"></span>
+          <span class="hi-score" data-role="score"></span>
         </span>
-        <span class="prev" data-role="preview"></span>
-        <span class="meta" data-role="meta"></span>
+        <span class="hi-preview" data-role="preview"></span>
+        <span class="hi-meta" data-role="meta"></span>
       </button>
     </template>
 

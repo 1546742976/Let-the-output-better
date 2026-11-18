@@ -107,6 +107,9 @@ class TestReference:
         assert ref.venue == "计算机学报"
         assert ref.year == 2023
 
+    def test_conference_alias_fills_venue(self):
+        assert Reference.model_validate({"title": "T", "conference": "NIPS"}).venue == "NIPS"
+
     def test_parse_text_supports_plain_citation(self):
         fields = Reference.parse_text("He K, Zhang X. Deep residual learning. CVPR 2016: 770-778.")
         assert fields["venue"] == "CVPR"

@@ -187,33 +187,377 @@
   },
   "g013": {
     "valid": true,
+    "score": 0.985,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "大规模预训练模型的评测方法",
+      "authors": [
+        "李明",
+        "王芳",
+        "Jones A"
+      ],
+      "year": 2024,
+      "venue": "ACL",
+      "keywords": [
+        "预训练",
+        "评测",
+        "基准"
+      ],
+      "abstract": "本文提出一套面向预训练模型的评测协议。"
+    }
+  },
+  "g014": {
+    "valid": true,
+    "score": 0.92,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "Attention-based scene understanding: a survey",
+      "authors": [
+        "Zhang W"
+      ],
+      "year": 2022,
+      "venue": "IEEE Transactions on Pattern Analysis",
+      "references": [
+        "Zhang W. Attention-based scene understanding: a survey[J]. IEEE TPAMI, 2022."
+      ]
+    }
+  },
+  "g015": {
+    "valid": true,
+    "score": 0.643,
+    "repaired": true,
+    "markers": [],
+    "final_output": {
+      "title": "强化学习在调度问题中的应用综述",
+      "authors": [
+        "赵刚"
+      ],
+      "year": 2035,
+      "venue": "自动化学报"
+    }
+  },
+  "g016": {
+    "valid": true,
+    "score": 0.97,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "联邦学习的隐私保护机制",
+      "authors": [
+        "孙丽",
+        "周敏"
+      ],
+      "year": 2023,
+      "venue": "软件学报",
+      "keywords": [
+        "联邦学习",
+        "隐私计算"
+      ]
+    }
+  },
+  "g017": {
+    "valid": true,
+    "score": 0.955,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "知识图谱补全的嵌入方法研究",
+      "authors": [
+        "高翔"
+      ],
+      "year": 2019,
+      "venue": "计算机研究与发展"
+    }
+  },
+  "g018": {
+    "valid": true,
+    "score": 0.954,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "Graph neural networks for recommendation: a survey",
+      "authors": [
+        "Liu Y",
+        "Chen H"
+      ],
+      "year": 2023,
+      "venue": "ACM Computing Surveys",
+      "keywords": [
+        "graph neural networks",
+        "recommendation"
+      ],
+      "references": [
+        "Liu Y, Chen H. Graph neural networks for recommendation: a survey[J]. ACM Computing Surveys, 2023, 56(4): 1-38."
+      ]
+    }
+  },
+  "g019": {
+    "valid": false,
+    "score": 0.8,
+    "repaired": true,
+    "markers": [
+      "repair_rejected"
+    ],
+    "final_output": "[{\"title\": \"不确定量化的贝叶斯深度网络\", \"authors\": [\"吴磊\"], \"year\": \"2020\", \"venue\": \"NeurIPS 2020\"}]"
+  },
+  "g020": {
+    "valid": true,
+    "score": 0.97,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "低资源机器翻译的元学习方法",
+      "authors": [
+        "郑华",
+        "林小军"
+      ],
+      "year": 2022,
+      "venue": "中文信息学报",
+      "keywords": [
+        "低资源",
+        "元学习",
+        "机器翻译"
+      ]
+    }
+  },
+  "g026": {
+    "valid": true,
+    "score": 0.982,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "机器学习",
+      "authors": [
+        "周志华"
+      ],
+      "venue": "北京: 清华大学出版社",
+      "year": 2016,
+      "type": "book"
+    }
+  },
+  "g027": {
+    "valid": true,
+    "score": 0.982,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "深度神经网络压缩方法研究",
+      "authors": [
+        "张伟"
+      ],
+      "venue": "南京: 南京大学",
+      "year": 2021,
+      "type": "thesis"
+    }
+  },
+  "g028": {
+    "valid": true,
+    "score": 1.0,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "A global report on artificial intelligence in health",
+      "authors": [
+        "World Health Organization"
+      ],
+      "venue": "WHO",
+      "year": 2024,
+      "doi": "10.1038/s41746-024-01080-8",
+      "type": "report"
+    }
+  },
+  "g029": {
+    "valid": true,
+    "score": 0.982,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "Summary of deep learning",
+      "authors": [
+        "He T",
+        "Liang C",
+        "Zhu J"
+      ],
+      "venue": "Journal of Software",
+      "year": 2021,
+      "type": "journal"
+    }
+  },
+  "g030": {
+    "valid": false,
+    "score": 1.0,
+    "repaired": true,
+    "markers": [
+      "repair_rejected"
+    ],
+    "final_output": "Vaswani A, Shazeer N."
+  },
+  "g031": {
+    "valid": true,
+    "score": 0.97,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "method": "EfficientNet-B0",
+      "metric": "Top-5 Acc",
+      "value": 93.4,
+      "dataset": "ImageNet",
+      "unit": "%"
+    }
+  },
+  "g032": {
+    "valid": true,
+    "score": 0.97,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "method": "Ours",
+      "metric": "mAP",
+      "value": 0.412,
+      "dataset": "COCO",
+      "baseline": 0.398
+    }
+  },
+  "g033": {
+    "valid": true,
+    "score": 1.0,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "method": "BERT-large",
+      "metric": "Average",
+      "value": 81.3,
+      "dataset": "GLUE",
+      "unit": "分",
+      "baseline": 79.6
+    }
+  },
+  "g034": {
+    "valid": false,
+    "score": 0.8,
+    "repaired": true,
+    "markers": [
+      "repair_rejected"
+    ],
+    "final_output": "{\"dataset\": \"B\", \"metric\": \"Recall\", \"value\": \"not reported\"}"
+  },
+  "g035": {
+    "valid": true,
+    "score": 0.92,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "图卷积网络的谱方法",
+      "authors": [
+        "藤原健二"
+      ],
+      "year": 2019,
+      "venue": "KDD",
+      "references": [
+        "Kipf TN, Welling M. Semi-supervised classification with graph convolutional networks[C]//ICLR. 2017."
+      ]
+    }
+  },
+  "g036": {
+    "valid": true,
+    "score": 0.955,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "面向边缘部署的模型剪枝",
+      "authors": [
+        "何伟",
+        "刘洋",
+        "Sarah Chen"
+      ],
+      "year": 2025,
+      "venue": "IEEE Internet of Things Journal"
+    }
+  },
+  "g037": {
+    "valid": true,
+    "score": 0.982,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "title": "Mastering the game of Go with deep neural networks and tree search",
+      "authors": [
+        "Silver D",
+        "Huang A",
+        "Maddison C J"
+      ],
+      "venue": "NIPS",
+      "year": 2016,
+      "type": "conference"
+    }
+  },
+  "g038": {
+    "valid": true,
+    "score": 0.917,
+    "repaired": false,
+    "markers": [],
+    "final_output": {
+      "method": "YOLOv8-n",
+      "metric": "mAP@0.5",
+      "value": 62.1,
+      "dataset": "VOC",
+      "unit": "%",
+      "baseline": 58.9
+    }
+  },
+  "g039": {
+    "valid": true,
+    "score": 0.797,
+    "repaired": true,
+    "markers": [],
+    "final_output": {
+      "title": "时空图网络的交通预测",
+      "authors": [
+        "田中诚"
+      ],
+      "year": 2023,
+      "venue": "KDD",
+      "keywords": [
+        "交通预测",
+        "时空图"
+      ],
+      "references": [
+        "Chen L, Wang Z. Traffic flow prediction with graph convolutional networks[J]. IEEE TITS, 2019, 20(5): 555-566.",
+        "Tanaka M. Spatiotemporal graph networks for traffic forecasting[C]//KDD. 2023."
+      ]
+    }
+  },
+  "g040": {
+    "valid": true,
     "score": 0.808,
     "repaired": false,
     "markers": [],
     "final_output": "实验表明，本文方法在 3 个公开数据集上取得了 12.5% 的 Top-1 准确率提升，性能优于对比方法。"
   },
-  "g014": {
+  "g041": {
     "valid": true,
     "score": 0.612,
     "repaired": false,
     "markers": [],
     "final_output": "该方法或许可以在某些情况下被用于相关任务；受制于算力，其有效性有待进一步验证。"
   },
-  "g015": {
+  "g042": {
     "valid": true,
     "score": 0.968,
     "repaired": false,
     "markers": [],
     "final_output": "我们在 2 个数据集上做了 5 组消融实验，结果是正例召回率上升。"
   },
-  "g016": {
+  "g043": {
     "valid": true,
     "score": 1.0,
     "repaired": false,
     "markers": [],
     "final_output": "本结论仅在 3 个数据集上得到验证。"
   },
-  "g017": {
+  "g044": {
     "valid": true,
     "score": 1.0,
     "repaired": false,

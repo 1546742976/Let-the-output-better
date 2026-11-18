@@ -10,6 +10,7 @@
 | 代码规范与格式 | Ruff lint 与 format --check |
 | 类型 | mypy，检查 app，包括未完整标注函数体 |
 | 测试与覆盖率 | pytest，行与分支综合覆盖率至少 80% |
+| 文档与实跑一致 | README §13 的用例数与综合覆盖率，与本次 `junit.xml`/`coverage.json` 比对（仅 Windows job） |
 | 兼容性 | Linux Python 3.11–3.14，Windows Python 3.13 |
 | 离线验证 | mock demo、金标评估及 CSV 结果断言 |
 | Python 安全 | Bandit |
@@ -32,6 +33,9 @@ CodeQL 发现展示在仓库 Security → Code scanning；分析执行成功不�
 CI 固定 `PROVIDER=mock`，不需要模型 API Key，也不传入模型密钥。
 评估脚本输出报告不一定以失败退出，所以额外校验 CSV：样本非空、valid 预期一致、关键字段匹配、事实保持且未降级。
 README 中的分数增益、修复率、延迟等研究目标保留在评估报告，不作为这项回归断言的硬阈值。
+两类数字区别对待：**机械事实**（用例数、综合覆盖率）可由 `.github/scripts/check_readme_metrics.py`
+与同一次运行的产物硬比对，漂移即失败；**研究目标**（分数增益、修复率等）依赖数据集与模型，仍只呈现于评估报告。
+前者只在 Windows job 比对——README §13 记录的是 win32 值，Linux 恒高约 0.15pp，跨平台比对只会产生假告警。
 
 ## 本地复现（上传应用代码前可先检查）
 
