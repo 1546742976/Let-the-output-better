@@ -323,13 +323,15 @@ class CcfVenueStep(BaseStep):
 
 起服后访问 `/`，三栏布局：左为历史会话，中为输入与结果流，右为运行环境与优化前后对照。
 
+视觉语言对齐 Google 官网：Google Sans 式几何标题（本机无该字体时回落到自托管 Poppins）、Roboto 正文、JetBrains Mono 代码字（可变字重、默认开启编程连字），蓝红黄绿四色品牌色、白色卡面与发丝描边、胶囊按钮与 Material 涟漪。顶栏固定并带分区导航；中部 hero 用一条可点击的五步流水线图表达管线，节点与下方步骤开关双向联动，统计条（记录数、平均 score、通过率、中位耗时）全部由真实审计记录算出。明暗双主题，选择写入 `localStorage`，默认跟随系统。
+
 | 区域 | 内容 | 数据来源 |
 | ------ | ------ | ------ |
-| 历史会话 | schema、状态、得分、耗时、变更标记；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
-| 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关与 `timeout_ms` | `GET /v1/config` |
-| 结果流 | 结论行、步骤时间线（逐步耗时与原因）、三维评分条、变更与标记、错误 | `POST /v1/optimize` 与该次的审计记录 |
+| 历史会话 | schema、状态、得分、耗时、变更标记；搜索、三种排序；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
+| 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关与 `timeout_ms`、示例一键填入 | `GET /v1/config` |
+| 结果流 | score 环（环上刻度为采纳阈值）、结论行、步骤时间线（条长为得分，无得分时按耗时占比）、三维评分条、变更与标记、错误、复制输出与重跑 | `POST /v1/optimize` 与该次的审计记录 |
 | 运行环境 | provider、阈值、超时、fail_open、引用风格、审计条数、健康灯 | `GET /v1/config`、`GET /healthz` |
-| 前后对照 | 行级 diff，增删分色 | 审计记录的 `raw_output` 与 `final_output` |
+| 前后对照 | 行级 diff，增删分色，统一 / 并排两种视图 | 审计记录的 `raw_output` 与 `final_output` |
 
 局限与注意点：
 
@@ -338,6 +340,8 @@ class CcfVenueStep(BaseStep):
 - `request_id` 含进程 nonce + 进程内序号（`req_日期_nonce_序号`），多进程并行不再重号；页面仍以审计文件的**行号**（`line_no`）作为选中依据——行号定位到具体一行更稳。
 - 步骤开关默认取 `pipeline.yaml` 的取值，提交时显式发送布尔值，不再沿用“未设置即跟随配置”的三态语义。
 - 模型输出与审计内容一律按纯文本渲染，测试用例断言页面不存在 `innerHTML` 等注入写法。
+- 字体与图标全部自托管（`app/web/fonts/` 为 latin 子集 woff2，附 OFL 许可证）。图标是自绘的内联 SVG sprite：24 网格、圆头描边线稿加一枚实心“节点”圆点，与 wordmark 的环+中心点同源，不沿用 Material 实心剪影；页面不引用任何站外资源，测试用例对此有断言。
+- 快捷键：`Ctrl/Cmd+Enter` 运行优化，`/` 聚焦历史搜索，`Esc` 关闭移动端抽屉；新建会话清空输入时提供「撤销」。
 - diff 在前端计算，超过 400 行自动降级为只显示优化后结果。
 - 布局在桌面宽度下为三栏，窄于 1040px 自动折叠为单列；左上按钮可收起历史栏。
 
@@ -535,7 +539,7 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 │   │   ├── command.py           # CommandHarness：白名单、stdin 传参、超时回收
 │   │   └── api.py               # ApiHarness：组合 OpenAI 兼容 provider
 │   ├── viewer.py                # 本地查看页：页面挂载、环境信息、只读审计尾部
-│   ├── web/                     # 页面资源：index.html / styles.css / app.js（零构建）
+│   ├── web/                     # 页面资源：index.html / styles.css / app.js / favicon.svg / fonts/（零构建）
 │   ├── audit.py                 # JSONL 审计
 │   ├── optimizer/
 │   │   ├── __init__.py          # optimize() 对外入口
