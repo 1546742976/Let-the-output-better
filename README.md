@@ -363,6 +363,7 @@ class CcfVenueStep(BaseStep):
 | 历史会话 | schema、状态、得分、耗时、变更标记；搜索、三种排序；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
 | 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关与 `timeout_ms`、示例一键填入 | `GET /v1/config` |
 | harness 面板 | profile 下拉、检测结果与「驱动 harness 并优化」；驱动不可用时给出原因，请求体只发 `task` 与 profile 名 | `GET /v1/harnesses`、`POST /v1/run` |
+| 运行进度 | 提交后状态行显示当前阶段与已耗时（`harness 运行中` / `管线 <步骤>`），流水线对应节点脉冲；结束或失败即退场 | `GET /v1/progress`（400ms 轮询） |
 | 结果流 | score 环（环上刻度为采纳阈值）、结论行、步骤时间线（条长为得分，无得分时按耗时占比）、评分条（散文四维：通俗度/自信度/简洁度/一致性）、变更与标记、错误、复制输出与重跑；`simplify` 一行留痕下挂三组标签——中性=命中的套话、红=删掉的无据限定、绿=保住的研究边界，另有「主张先行」判定 | `POST /v1/optimize` 与该次的审计记录 |
 | 运行环境 | provider、阈值、超时、fail_open、引用风格、审计条数、健康灯 | `GET /v1/config`、`GET /healthz` |
 | 前后对照 | 行级 diff，增删分色，统一 / 并排两种视图 | 审计记录的 `raw_output` 与 `final_output` |
@@ -377,6 +378,7 @@ class CcfVenueStep(BaseStep):
 - 字体与图标全部自托管（`app/web/fonts/` 为 latin 子集 woff2，附 OFL 许可证）。图标是自绘的内联 SVG sprite：24 网格、圆头描边线稿加一枚实心“节点”圆点，与 wordmark 的环+中心点同源，不沿用 Material 实心剪影；页面不引用任何站外资源，测试用例对此有断言。
 - 快捷键：`Ctrl/Cmd+Enter` 运行优化，`/` 聚焦历史搜索，`Esc` 关闭移动端抽屉；新建会话清空输入时提供「撤销」。
 - diff 在前端计算，超过 400 行自动降级为只显示优化后结果。
+- 运行进度是**进程内**登记（`app/progress.py`），只解释现状、不参与优化语义：`active` 是在飞运行（阶段、已完成步骤、已耗时），`last` 是最近一次结束的运行（429/5xx 记为 `failed` 并带原因），其 `run_id` 与响应及审计同源。步骤的 start/end 由管线唯一隔离入口上报，单步异常被隔离时收尾照样成对。多 worker 部署时各进程各自登记；本地查看页绑定 loopback 单进程，不受影响。进度轮询失败不打断提交。
 - 布局为"细左栏 + 居中主列"，窄于 1040px 折叠为单列；左上按钮可收起历史栏。样式全部走令牌（间距 4 基、字号 5 档、圆角 4 档、两套语义色），`padding/margin/gap/font-size` 不写字面量——实测 301 个渲染节点的这三类取值全部落在令牌集内。
 
 ### 7.5 驱动 harness（任务主路径）
@@ -661,7 +663,7 @@ pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 - harness 装配单测：以桩 `scan` 结果与假成员覆盖 `_detected()` 过滤、`HarnessRegistry` 选择与级联关闭、`build_harness` 多源合并，验证装配逻辑且全程不 exec。
 - 引用方言单测：断言姓名判定否决、类型推断、`render_apa` 各作者数与 `parse_citation` 失败退回等确定性分支。
 
-v0.6 实测：529 项用例通过，`app/` 行与分支综合覆盖率 94.56%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，写错即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
+v0.6 实测：539 项用例通过，`app/` 行与分支综合覆盖率 94.55%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，写错即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
 
 ## 14. 版本规划
 

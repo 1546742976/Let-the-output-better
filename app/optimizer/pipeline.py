@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import count
@@ -86,7 +87,12 @@ class OptimizeResult:
 
 
 async def _execute_step(
-    ctx: StepContext, step_class: type[BaseStep], config: StepConfig, *, error_key: str | None = None
+    ctx: StepContext,
+    step_class: type[BaseStep],
+    config: StepConfig,
+    *,
+    error_key: str | None = None,
+    on_step: Callable[[str, str], None] | None = None,
 ) -> StepResult:
     """执行一个步骤并隔离异常：单步故障不断链，只记录原因。
 
@@ -94,8 +100,11 @@ async def _execute_step(
     两种失败语义——此前 `_remeasure` 在 try 之外直接调 `RulesStep(...).run(ctx)`，
     rules 一抛错就冒到最外层 except，把**已经采纳的改写**连同整条结果退回原文。
     `except Exception` 有意不含 `CancelledError`（它不是 Exception），取消照常上抛。
+    ``on_step`` 只上报 start/end 供进度展示，抛错不影响步骤语义（登记处自己兜底）。
     """
     started = time.perf_counter()
+    if on_step is not None:
+        on_step("start", config.name)
     try:
         return await step_class(config, ctx.settings).run(ctx)
     except Exception as exc:
@@ -106,9 +115,12 @@ async def _execute_step(
             reason=f"步骤异常已隔离：{type(exc).__name__}: {exc}",
             ms=int((time.perf_counter() - started) * 1000),
         )
+    finally:
+        if on_step is not None:
+            on_step("end", config.name)
 
 
-async def _run_steps(ctx: StepContext) -> list[dict[str, Any]]:
+async def _run_steps(ctx: StepContext, on_step: Callable[[str, str], None] | None = None) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for step_config in ctx.config.steps:
         if not step_config.enabled:
@@ -123,7 +135,7 @@ async def _run_steps(ctx: StepContext) -> list[dict[str, Any]]:
         step = step_class(step_config, ctx.settings)
         if not step.should_run(ctx):
             continue
-        recorded = (await _execute_step(ctx, step_class, step_config)).as_dict()
+        recorded = (await _execute_step(ctx, step_class, step_config, on_step=on_step)).as_dict()
         if step_config.name == "simplify" and "采纳通俗化重写" in ctx.changes:
             # rules 跑在 simplify 之前；改写发生后不重算，score 描述的就只是输入而非交付物。
             status = await _remeasure(ctx)
@@ -176,6 +188,7 @@ async def optimize(
     request_id: str | None = None,
     audit: AuditLog | None = None,
     audit_extra: dict[str, Any] | None = None,
+    on_step: Callable[[str, str], None] | None = None,
 ) -> OptimizeResult:
     """对一次模型输出执行后置优化；任何异常都以“返回原始输出”收口。"""
     base_settings = settings or get_settings()
@@ -214,7 +227,7 @@ async def optimize(
     degraded = False
     degraded_reason = ""
     try:
-        steps = await asyncio.wait_for(_run_steps(ctx), timeout=timeout_s)
+        steps = await asyncio.wait_for(_run_steps(ctx, on_step), timeout=timeout_s)
     except TimeoutError:
         degraded, degraded_reason = True, f"管线超时（{effective.timeout_ms}ms），回退原始输出"
         ctx.markers.append("timeout")

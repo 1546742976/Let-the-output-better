@@ -15,6 +15,7 @@ from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from app import progress
 from app.harness.detect import as_dict, probe_cache_size, scan
 from app.harness.detect import probe as probe_candidate
 from app.harness.profiles import PROFILES
@@ -204,6 +205,12 @@ async def audit_history(
     limit: int = Query(default=DEFAULT_AUDIT_ITEMS, ge=1, le=MAX_AUDIT_ITEMS),
 ) -> dict[str, Any]:
     return read_audit_tail(request.app.state.settings.audit_path, limit)
+
+
+@router.get("/v1/progress")
+async def run_progress() -> dict[str, Any]:
+    """在飞运行的阶段快照：页面轮询它把"转圈"换成"卡在哪一段"。只读，不收参数。"""
+    return progress.snapshot()
 
 
 @router.get("/v1/harnesses")

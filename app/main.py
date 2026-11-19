@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from app import progress
 from app.harness import (
     HarnessBusy,
     HarnessError,
@@ -16,7 +17,7 @@ from app.harness import (
     HarnessUnavailable,
     build_harness,
 )
-from app.optimizer import OptimizeResult, optimize
+from app.optimizer import OptimizeResult, new_request_id, optimize
 from app.providers import build_provider
 from app.schemas import SCHEMA_REGISTRY
 from app.settings import get_pipeline_config, get_settings
@@ -112,8 +113,18 @@ async def _optimize_output(
     input_text: str,
     options: Options,
     audit_extra: dict[str, Any] | None = None,
+    request_id: str | None = None,
 ) -> OptimizeResult:
     """/v1/optimize 与 /v1/run 共用同一条后处理路径，避免两处参数漂移。"""
+
+    def on_step(event: str, step: str) -> None:
+        if request_id is None:
+            return
+        if event == "start":
+            progress.phase(request_id, step)
+        else:
+            progress.step_done(request_id, step)
+
     return await optimize(
         raw_output,
         schema=schema_name,
@@ -129,19 +140,29 @@ async def _optimize_output(
         strict=options.strict,
         timeout_ms=options.timeout_ms,
         audit_extra=audit_extra,
+        request_id=request_id,
+        on_step=on_step if request_id is not None else None,
     )
 
 
 @app.post("/v1/optimize")
 async def optimize_endpoint(payload: OptimizeRequest) -> dict[str, Any]:
     _check_schema(payload.schema_name)
-    result = await _optimize_output(
-        raw_output=payload.raw_output,
-        schema_name=payload.schema_name,
-        instruction=payload.instruction,
-        input_text=payload.input_text,
-        options=payload.options,
-    )
+    run_id = new_request_id()
+    progress.begin(run_id, "optimize", "pipeline")
+    try:
+        result = await _optimize_output(
+            raw_output=payload.raw_output,
+            schema_name=payload.schema_name,
+            instruction=payload.instruction,
+            input_text=payload.input_text,
+            options=payload.options,
+            request_id=run_id,
+        )
+    except Exception as exc:
+        progress.finish(run_id, ok=False, detail=str(exc))
+        raise
+    progress.finish(run_id)
     return result.as_response()
 
 
@@ -182,23 +203,32 @@ async def run_endpoint(payload: RunRequest) -> dict[str, Any]:
     _check_schema(payload.schema_name)
     target = _resolve_harness(harness, payload.harness)
     timeout_s = app.state.settings.harness_timeout_ms / 1000
+    run_id = new_request_id()
+    progress.begin(run_id, "run", "harness")
     try:
-        run = await target.run(task=payload.task, timeout_s=timeout_s)
-    except HarnessBusy as exc:
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
-    except HarnessTimeout as exc:
-        raise HTTPException(status_code=504, detail=str(exc)) from exc
-    except HarnessUnavailable as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except HarnessError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        try:
+            run = await target.run(task=payload.task, timeout_s=timeout_s)
+        except HarnessBusy as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        except HarnessTimeout as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except HarnessUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except HarnessError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    result = await _optimize_output(
-        raw_output=run.text,
-        schema_name=payload.schema_name,
-        instruction=payload.instruction,
-        input_text=payload.input_text,
-        options=payload.options,
-        audit_extra={"task": payload.task, "harness": run.as_audit(target.name)},
-    )
+        progress.phase(run_id, "pipeline")
+        result = await _optimize_output(
+            raw_output=run.text,
+            schema_name=payload.schema_name,
+            instruction=payload.instruction,
+            input_text=payload.input_text,
+            options=payload.options,
+            audit_extra={"task": payload.task, "harness": run.as_audit(target.name)},
+            request_id=run_id,
+        )
+    except Exception as exc:
+        progress.finish(run_id, ok=False, detail=str(exc))
+        raise
+    progress.finish(run_id)
     return {**result.as_response(), "harness": {**run.as_audit(target.name), "chars": len(run.text)}}

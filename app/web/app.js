@@ -1010,6 +1010,46 @@ function setStatus(message, isError) {
   node.classList.toggle("error", Boolean(isError));
 }
 
+/* ---------- 运行进度 ---------- */
+
+let progressTimer = null;
+let progressGen = 0;
+
+function stopProgress() {
+  progressGen += 1;
+  if (progressTimer !== null) {
+    clearInterval(progressTimer);
+    progressTimer = null;
+  }
+  document.querySelectorAll(".pipe-node.is-live").forEach((node) => node.classList.remove("is-live"));
+}
+
+async function pollProgress(kind, statusNode, gen) {
+  try {
+    const data = await getJSON("/v1/progress");
+    // 收尾与轮询存在竞态：已在飞的这次请求回来时运行可能已结束，
+    // 迟到的阶段文本不得覆盖"完成/失败"结论，也不得重新点亮脉冲。
+    if (gen !== progressGen) return;
+    const active = (data.active || []).filter((run) => run.kind === kind);
+    const run = active[active.length - 1];
+    if (!run) return;
+    const label = run.phase === "harness" ? "harness 运行中" : run.phase === "pipeline" ? "管线启动" : `管线 ${run.phase}`;
+    statusNode.textContent = `${label}… ${(run.elapsed_ms / 1000).toFixed(1)}s`;
+    document.querySelectorAll(".pipe-node").forEach((node) => {
+      node.classList.toggle("is-live", node.dataset.step === run.phase);
+    });
+  } catch (error) {
+    // 进度只是解释层：轮询失败不该把主流程染成错误，也不该打断提交
+  }
+}
+
+function startProgress(kind, statusNode) {
+  stopProgress();
+  const gen = progressGen;
+  pollProgress(kind, statusNode, gen);
+  progressTimer = setInterval(() => pollProgress(kind, statusNode, gen), 400);
+}
+
 function collectOptions() {
   const options = {};
   document.querySelectorAll('#options input[type="checkbox"]').forEach((input) => {
@@ -1052,6 +1092,7 @@ async function submitRun(event) {
   const button = $("run-btn");
   button.disabled = true;
   setStatus("运行中…");
+  startProgress("optimize", $("form-status"));
   const payload = collectPayload();
   try {
     const response = await postJSON("/v1/optimize", payload);
@@ -1064,6 +1105,7 @@ async function submitRun(event) {
     setStatus(`失败：${error.message}`, true);
     snack(`运行失败：${error.message}`, { label: "重试", run: requestRun });
   } finally {
+    stopProgress();
     button.disabled = false;
   }
 }
@@ -1240,7 +1282,7 @@ async function submitHarness() {
   }
   button.disabled = true;
   statusNode.classList.remove("error");
-  statusNode.textContent = "harness 运行中…";
+  startProgress("run", statusNode);
   const payload = {
     task,
     harness: $("field-harness").value || null,
@@ -1262,6 +1304,7 @@ async function submitHarness() {
     statusNode.classList.add("error");
     snack(`harness 失败：${error.message}`);
   } finally {
+    stopProgress();
     renderHarnessEntry();
   }
 }
