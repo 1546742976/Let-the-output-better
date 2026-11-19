@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -55,6 +55,8 @@ class OptimizeRequest(BaseModel):
     schema_name: str | None = Field(default=None, alias="schema")
     instruction: str = Field(default="", max_length=MAX_INSTRUCTION_CHARS)
     input_text: str = Field(default="", max_length=MAX_INPUT_CHARS)
+    #: 逐请求覆盖 format 步骤的引用风格；缺省跟随 pipeline.yaml。
+    reference_style: Literal["gb-t-7714", "apa"] | None = None
     options: Options = Field(default_factory=Options)
 
 
@@ -69,6 +71,7 @@ class RunRequest(BaseModel):
     harness: str | None = None
     instruction: str = Field(default="", max_length=MAX_INSTRUCTION_CHARS)
     input_text: str = Field(default="", max_length=MAX_INPUT_CHARS)
+    reference_style: Literal["gb-t-7714", "apa"] | None = None
     options: Options = Field(default_factory=Options)
 
 
@@ -113,6 +116,7 @@ async def _optimize_output(
     input_text: str,
     options: Options,
     audit_extra: dict[str, Any] | None = None,
+    reference_style: str | None = None,
     request_id: str | None = None,
 ) -> OptimizeResult:
     """/v1/optimize 与 /v1/run 共用同一条后处理路径，避免两处参数漂移。"""
@@ -140,6 +144,7 @@ async def _optimize_output(
         strict=options.strict,
         timeout_ms=options.timeout_ms,
         audit_extra=audit_extra,
+        reference_style=reference_style,
         request_id=request_id,
         on_step=on_step if request_id is not None else None,
     )
@@ -157,6 +162,7 @@ async def optimize_endpoint(payload: OptimizeRequest) -> dict[str, Any]:
             instruction=payload.instruction,
             input_text=payload.input_text,
             options=payload.options,
+            reference_style=payload.reference_style,
             request_id=run_id,
         )
     except Exception as exc:
@@ -225,6 +231,7 @@ async def run_endpoint(payload: RunRequest) -> dict[str, Any]:
             input_text=payload.input_text,
             options=payload.options,
             audit_extra={"task": payload.task, "harness": run.as_audit(target.name)},
+            reference_style=payload.reference_style,
             request_id=run_id,
         )
     except Exception as exc:
