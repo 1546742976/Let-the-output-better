@@ -225,6 +225,28 @@ OPENAI_MODEL=gpt-4o-mini
 
 接入 DeepSeek、Qwen 或本地 vLLM 时，仅需调整 `OPENAI_BASE_URL` 与 `OPENAI_MODEL`，无需修改代码。
 
+非 OpenAI 协议的原生适配器（v0.7）：
+
+```env
+PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-sonnet-4-5
+```
+
+```env
+PROVIDER=gemini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+```env
+PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+三者与 `openai` 共用同一套失败语义（限流/超时/坏结构分别抛 `ProviderError`/`ProviderTimeout`），审计里的 `provider` 字段记录实际装配名，页面健康灯同源。协议差异在适配器内消化：Anthropic 的 system 是顶层字段且无 `response_format`（json_mode 折进 system 提示），Gemini 走 `systemInstruction` 与 `generationConfig.responseMimeType`、鉴权用 `x-goog-api-key` 头而非 URL query（密钥不进访问日志），OpenRouter 复用 OpenAI 兼容面但单列 provider 名以区分路由与直连的限流/账单口径。缺密钥在启动期即报错，不留到第一次调用。
+
 ## 7. 使用指南
 
 ### 7.1 Python 调用
@@ -269,6 +291,8 @@ print(result.degraded)       # 是否发生降级
   "options": { "score": true, "repair": true, "format": true, "simplify": false, "timeout_ms": 8000 }
 }
 ```
+
+`reference_style` 可选 `"gb-t-7714"` / `"apa"`，**逐请求**覆盖 `pipeline.yaml` 里 format 步骤的引用风格；缺省跟随配置，`POST /v1/run` 同样接受。未知取值在入口 422：请求模型是 `extra="forbid"` 加 Literal，而管线侧 `model_copy(update=…)` 不校验 Literal，坏值若漏进去会静默按 GB/T 排——所以 `optimize()` 入口另行炸 `ValueError`，两层都有测试钉住。
 
 响应示例：
 
@@ -339,8 +363,9 @@ class CcfVenueStep(BaseStep):
 | 区域 | 内容 | 数据来源 |
 | ------ | ------ | ------ |
 | 历史会话 | schema、状态、得分、耗时、变更标记；搜索、三种排序；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
-| 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关与 `timeout_ms`、示例一键填入 | `GET /v1/config` |
+| 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关、`timeout_ms` 与引用风格下拉（跟随配置 / GB/T 7714 / APA，逐请求覆盖）、示例一键填入 | `GET /v1/config` |
 | harness 面板 | profile 下拉、检测结果与「驱动 harness 并优化」；驱动不可用时给出原因，请求体只发 `task` 与 profile 名 | `GET /v1/harnesses`、`POST /v1/run` |
+| 运行进度 | 提交后状态行显示当前阶段与已耗时（`harness 运行中` / `管线 <步骤>`），流水线对应节点脉冲；结束或失败即退场 | `GET /v1/progress`（400ms 轮询） |
 | 结果流 | score 环（环上刻度为采纳阈值）、结论行、步骤时间线（条长为得分，无得分时按耗时占比）、评分条（散文四维：通俗度/自信度/简洁度/一致性）、变更与标记、错误、复制输出与重跑；`simplify` 一行留痕下挂三组标签——中性=命中的套话、红=删掉的无据限定、绿=保住的研究边界，另有「主张先行」判定 | `POST /v1/optimize` 与该次的审计记录 |
 | 运行环境 | provider、阈值、超时、fail_open、引用风格、审计条数、健康灯 | `GET /v1/config`、`GET /healthz` |
 | 前后对照 | 行级 diff，增删分色，统一 / 并排两种视图；常驻右栏底部（宽屏封顶环境面板让位，窄屏 sticky 锚视口底部），不再占顶栏导航位 | 审计记录的 `raw_output` 与 `final_output` |
@@ -355,6 +380,7 @@ class CcfVenueStep(BaseStep):
 - 字体与图标全部自托管（`app/web/fonts/` 为 latin 子集 woff2，附 OFL 许可证）。图标是自绘的内联 SVG sprite：24 网格、圆头描边线稿加一枚实心“节点”圆点，与 wordmark 的环+中心点同源，不沿用 Material 实心剪影；页面不引用任何站外资源，测试用例对此有断言。
 - 快捷键：`Ctrl/Cmd+Enter` 运行优化，`/` 聚焦历史搜索，`Esc` 关闭移动端抽屉；新建会话清空输入时提供「撤销」。
 - diff 在前端计算，超过 400 行自动降级为只显示优化后结果。
+- 运行进度是**进程内**登记（`app/progress.py`），只解释现状、不参与优化语义：`active` 是在飞运行（阶段、已完成步骤、已耗时），`last` 是最近一次结束的运行（429/5xx 记为 `failed` 并带原因），其 `run_id` 与响应及审计同源。步骤的 start/end 由管线唯一隔离入口上报，单步异常被隔离时收尾照样成对。多 worker 部署时各进程各自登记；本地查看页绑定 loopback 单进程，不受影响。进度轮询失败不打断提交。
 - 布局为"细左栏 + 居中主列"，窄于 1040px 折叠为单列；左上按钮可收起历史栏。样式全部走令牌（间距 4 基、字号 5 档、圆角 4 档、两套语义色），`padding/margin/gap/font-size` 不写字面量——实测 301 个渲染节点的这三类取值全部落在令牌集内。
 
 ### 7.5 驱动 harness（任务主路径）
@@ -409,10 +435,19 @@ curl -s "localhost:8000/v1/harnesses?probe=true"  # 额外跑 --version / login 
 
 | 变量 | 默认值 | 说明 |
 | ------ | -------- | ------ |
-| `PROVIDER` | `mock` | `mock` 或 `openai` |
+| `PROVIDER` | `mock` | `mock`、`openai`、`anthropic`、`gemini` 或 `openrouter` |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容服务地址 |
 | `OPENAI_API_KEY` | 空 | 仅 `provider=openai` 时必填 |
 | `OPENAI_MODEL` | `gpt-4o-mini` | 修复与通俗化改写使用的模型 |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com/v1` | Anthropic Messages 服务地址 |
+| `ANTHROPIC_API_KEY` | 空 | 仅 `provider=anthropic` 时必填 |
+| `ANTHROPIC_MODEL` | `claude-sonnet-4-5` | Anthropic 模型名 |
+| `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta` | Gemini generateContent 服务地址 |
+| `GEMINI_API_KEY` | 空 | 仅 `provider=gemini` 时必填 |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini 模型名 |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter 路由地址（OpenAI 兼容协议） |
+| `OPENROUTER_API_KEY` | 空 | 仅 `provider=openrouter` 时必填 |
+| `OPENROUTER_MODEL` | `openai/gpt-4o-mini` | OpenRouter 模型名（带厂商前缀） |
 | `OPTIMIZE_SCORE_THRESHOLD` | `0.8` | 低于该分值触发修复 |
 | `OPTIMIZE_MAX_REPAIR_RETRIES` | `1` | 修复调用上限 |
 | `OPTIMIZE_TIMEOUT_MS` | `8000` | 整条管线的时间预算 |
@@ -641,7 +676,7 @@ v0.6 实测：507 项用例通过，`app/` 行与分支综合覆盖率 94.47%（
 | v0.4 | 通俗化改为主线：词表与句式检测、plainness/concision 评分、散文默认开启 | 已交付 |
 | v0.5 | 防御性写作成为可判定目标：无据限定/研究边界分类、自信度与主张先行、边界丢失否决采纳 | 已交付 |
 | v0.6 | harness 驱动成为任务主路径：`HARNESS_ENABLED` 默认开启、页面默认入口跟随可用性、无成员时降级回粘贴 | 已交付 |
-| v0.7 | 标注集扩充到真实语料抽样，据此校准指称启发式阈值；新增 Anthropic、Gemini、OpenRouter 适配器 | 规划中 |
+| v0.7 | 新增 Anthropic、Gemini、OpenRouter 适配器（已交付）；标注集扩充到真实语料抽样，据此校准指称启发式阈值（规划中） | 部分交付 |
 | v0.8 | 可选 LLM 评分维度（含自然度）、多候选输出重排 | 规划中 |
 | v0.9 | 基于审计数据的阈值调优与漂移检测 | 规划中 |
 | v1.0 | 持久化存储、监控接入与可视化面板 | 规划中 |

@@ -73,6 +73,7 @@ const state = {
   selectedLine: null,
   harnessNotes: {},
   auditTotal: 0,
+  auditError: "",
   query: "",
   sort: "new",
   currentRecord: null,
@@ -274,6 +275,18 @@ function renderOptionToggles() {
   input.value = state.config ? String(state.config.timeout_ms) : "8000";
   timeout.appendChild(input);
   box.appendChild(timeout);
+  const refStyle = el("label", "opt-timeout");
+  refStyle.appendChild(el("span", null, "引用风格"));
+  const styleSelect = el("select");
+  styleSelect.id = "field-reference-style";
+  styleSelect.setAttribute("aria-label", "引用风格（每请求覆盖配置）");
+  [["", "跟随配置"], ["gb-t-7714", "GB/T 7714"], ["apa", "APA"]].forEach(([value, label]) => {
+    const option = el("option", null, label);
+    option.value = value;
+    styleSelect.appendChild(option);
+  });
+  refStyle.appendChild(styleSelect);
+  box.appendChild(refStyle);
   syncOptionState();
 }
 
@@ -529,7 +542,11 @@ function renderHistory() {
     const note = el(
       "div",
       "muted-note",
-      state.query.trim() ? `没有匹配「${state.query.trim()}」的记录。` : "暂无审计记录。运行一次优化即可在此留痕。"
+      state.query.trim()
+        ? `没有匹配「${state.query.trim()}」的记录。`
+        : state.auditError
+          ? "审计读取失败，无法列出记录（原因见抽屉底部）。"
+          : "暂无审计记录。运行一次优化即可在此留痕。"
     );
     note.style.padding = "10px 16px";
     list.appendChild(note);
@@ -574,13 +591,21 @@ async function loadHistory() {
     const data = await getJSON("/v1/audits?limit=60");
     state.items = data.items || [];
     state.auditTotal = data.total_lines || 0;
+    // 后端读不动审计时返回 200＋error（只坏历史面板，不 500 整页）：
+    // 不展示就会伪装成"暂无记录"，把配置/权限问题藏成空列表。
+    state.auditError = String(data.error || "");
     const exact = data.total_exact !== false;
     const totalText = exact ? `${data.total_lines} 条` : `尾部 ${data.total_lines} 条（窗口下界）`;
-    foot.textContent = `${state.items.length} / ${totalText}${data.skipped ? ` · 跳过损坏 ${data.skipped}` : ""}`;
+    foot.textContent = state.auditError
+      ? state.auditError
+      : `${state.items.length} / ${totalText}${data.skipped ? ` · 跳过损坏 ${data.skipped}` : ""}`;
+    foot.classList.toggle("error", Boolean(state.auditError));
     renderEnv(data.total_lines, exact);
   } catch (error) {
     state.items = [];
+    state.auditError = error.message;
     foot.textContent = `历史读取失败：${error.message}`;
+    foot.classList.add("error");
   }
   renderHistory();
   renderStats();
@@ -997,6 +1022,46 @@ function setStatus(message, isError) {
   node.classList.toggle("error", Boolean(isError));
 }
 
+/* ---------- 运行进度 ---------- */
+
+let progressTimer = null;
+let progressGen = 0;
+
+function stopProgress() {
+  progressGen += 1;
+  if (progressTimer !== null) {
+    clearInterval(progressTimer);
+    progressTimer = null;
+  }
+  document.querySelectorAll(".pipe-node.is-live").forEach((node) => node.classList.remove("is-live"));
+}
+
+async function pollProgress(kind, statusNode, gen) {
+  try {
+    const data = await getJSON("/v1/progress");
+    // 收尾与轮询存在竞态：已在飞的这次请求回来时运行可能已结束，
+    // 迟到的阶段文本不得覆盖"完成/失败"结论，也不得重新点亮脉冲。
+    if (gen !== progressGen) return;
+    const active = (data.active || []).filter((run) => run.kind === kind);
+    const run = active[active.length - 1];
+    if (!run) return;
+    const label = run.phase === "harness" ? "harness 运行中" : run.phase === "pipeline" ? "管线启动" : `管线 ${run.phase}`;
+    statusNode.textContent = `${label}… ${(run.elapsed_ms / 1000).toFixed(1)}s`;
+    document.querySelectorAll(".pipe-node").forEach((node) => {
+      node.classList.toggle("is-live", node.dataset.step === run.phase);
+    });
+  } catch (error) {
+    // 进度只是解释层：轮询失败不该把主流程染成错误，也不该打断提交
+  }
+}
+
+function startProgress(kind, statusNode) {
+  stopProgress();
+  const gen = progressGen;
+  pollProgress(kind, statusNode, gen);
+  progressTimer = setInterval(() => pollProgress(kind, statusNode, gen), 400);
+}
+
 function collectOptions() {
   const options = {};
   document.querySelectorAll('#options input[type="checkbox"]').forEach((input) => {
@@ -1009,13 +1074,16 @@ function collectOptions() {
 }
 
 function collectPayload() {
-  return {
+  const payload = {
     raw_output: $("field-raw").value,
     schema: $("field-schema").value || null,
     instruction: $("field-instruction").value,
     input_text: $("field-input-text").value,
     options: collectOptions(),
   };
+  const style = $("field-reference-style").value;
+  if (style) payload.reference_style = style;
+  return payload;
 }
 
 function applyOptimizeResponse(response, fallbackRawOutput) {
@@ -1039,6 +1107,7 @@ async function submitRun(event) {
   const button = $("run-btn");
   button.disabled = true;
   setStatus("运行中…");
+  startProgress("optimize", $("form-status"));
   const payload = collectPayload();
   try {
     const response = await postJSON("/v1/optimize", payload);
@@ -1051,6 +1120,7 @@ async function submitRun(event) {
     setStatus(`失败：${error.message}`, true);
     snack(`运行失败：${error.message}`, { label: "重试", run: requestRun });
   } finally {
+    stopProgress();
     button.disabled = false;
   }
 }
@@ -1202,7 +1272,10 @@ async function loadHarnesses(probe) {
     renderDetected(data);
     renderProfileNotes();
     if (probe) {
-      statusNode.textContent = data.probed ? "探测完成" : "驱动未启用，已跳过探测";
+      const cached = Number(data.probe_cached || 0);
+      statusNode.textContent = data.probed
+        ? `探测完成${cached ? ` · 缓存 ${cached} 项（有效期内直接复用，不重复起进程）` : ""}`
+        : "驱动未启用，已跳过探测";
       statusNode.classList.remove("error");
     }
   } catch (error) {
@@ -1224,7 +1297,7 @@ async function submitHarness() {
   }
   button.disabled = true;
   statusNode.classList.remove("error");
-  statusNode.textContent = "harness 运行中…";
+  startProgress("run", statusNode);
   const payload = {
     task,
     harness: $("field-harness").value || null,
@@ -1246,6 +1319,7 @@ async function submitHarness() {
     statusNode.classList.add("error");
     snack(`harness 失败：${error.message}`);
   } finally {
+    stopProgress();
     renderHarnessEntry();
   }
 }
@@ -1256,6 +1330,7 @@ function resetRun(announce = false) {
     instruction: $("field-instruction").value,
     inputText: $("field-input-text").value,
     schema: $("field-schema").value,
+    refStyle: $("field-reference-style").value,
     selectedLine: state.selectedLine,
   };
   const hadContent = Boolean(snapshot.raw || snapshot.instruction || snapshot.inputText);
@@ -1266,6 +1341,7 @@ function resetRun(announce = false) {
   $("field-instruction").value = "";
   $("field-input-text").value = "";
   $("field-schema").value = "";
+  $("field-reference-style").value = "";
   $("result-panel").hidden = true;
   state.diffRows = [];
   state.diffDegraded = false;
@@ -1284,6 +1360,7 @@ function resetRun(announce = false) {
           $("field-instruction").value = snapshot.instruction;
           $("field-input-text").value = snapshot.inputText;
           $("field-schema").value = snapshot.schema;
+          $("field-reference-style").value = snapshot.refStyle;
           state.selectedLine = snapshot.selectedLine;
           const record = state.items.find((item) => item.line_no === snapshot.selectedLine);
           if (record) {
