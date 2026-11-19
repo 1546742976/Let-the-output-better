@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from app.harness.detect import as_dict, scan
 from app.harness.detect import probe as probe_candidate
 from app.harness.profiles import PROFILES
-from app.schemas import SCHEMA_REGISTRY
+from app.schemas import SCHEMA_REGISTRY, optional_field_names, required_field_names
 from app.settings import apply_overrides
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -165,8 +165,8 @@ async def runtime_config(request: Request) -> dict[str, Any]:
         "steps": {step.name: {"enabled": step.enabled, "strict": step.strict} for step in pipeline.steps},
         "schemas": {
             name: {
-                "required": model_cls.required_fields(),
-                "optional": model_cls.optional_fields(),
+                "required": required_field_names(model_cls) or [],
+                "optional": optional_field_names(model_cls) or [],
             }
             for name, model_cls in SCHEMA_REGISTRY.items()
         },

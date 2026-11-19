@@ -138,6 +138,35 @@ class TestStepToggles:
         assert simplify_step["score_after"] == result.score
         assert result.dimensions["plainness"] == 1.0
 
+    async def test_remeasure_failure_keeps_adopted_rewrite(self, settings, monkeypatch):
+        """重算失败不能把整条结果退回原文：那次改写已经通过闸门，是验证过的工作。"""
+        from app.optimizer.steps.rules import RulesStep
+
+        seen: list[float | None] = []
+        original = RulesStep.run
+
+        async def flaky(step_self, ctx):
+            seen.append(ctx.score)
+            if len(seen) > 1:
+                raise RuntimeError("重算炸了")
+            return await original(step_self, ctx)
+
+        monkeypatch.setattr(RulesStep, "run", flaky)
+        result = await optimize("值得注意的是，实验结果充分表明本文方法优于基线。", settings=settings)
+        assert "采纳通俗化重写" in result.changes, "前提不成立：这次运行根本没采纳改写"
+        assert len(seen) == 2, "第二次没跑到，等于本用例没测重算路径"
+        assert result.degraded is False
+        assert "值得注意的是" not in str(result.final_output), "改写被一起退回原文了"
+        assert "remeasure_error(rules)" in result.errors
+        simplify_step = next(step for step in result.steps if step["name"] == "simplify")
+        assert simplify_step["score_after"] is None, "没重算成功却报分数，就是把输入说成交付物"
+
+    async def test_remeasure_skipped_when_scoring_disabled(self, settings):
+        result = await optimize("值得注意的是，本文方法具有广阔的应用前景。", settings=settings, score=False)
+        assert "rules" not in names(result)
+        simplify_step = next(step for step in result.steps if step["name"] == "simplify")
+        assert "score_after" not in simplify_step, "关了评分却还偷偷算一次，是另一种静默不一致"
+
     async def test_repair_false_keeps_invalid_output_untouched(self, settings):
         raw = "抱歉，我找不到这篇论文。"
         result = await optimize(raw, schema="paper", settings=settings, repair=False)

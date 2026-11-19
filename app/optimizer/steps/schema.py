@@ -5,12 +5,12 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.optimizer.context import StepContext
 from app.optimizer.steps import register_step
 from app.optimizer.steps.base import BaseStep, StepResult
-from app.schemas import AcademicModel
+from app.schemas import parse_model_text, required_field_names
 from app.textio import extract_json, strip_markdown_fences
 
 
@@ -18,7 +18,7 @@ def is_filled(value: Any) -> bool:
     return value not in (None, "", [], {}, ())
 
 
-def alias_keys(model_cls: type[AcademicModel], name: str) -> list[str]:
+def alias_keys(model_cls: type[BaseModel], name: str) -> list[str]:
     field_info = model_cls.model_fields[name]
     keys = [name]
     if field_info.alias:
@@ -31,14 +31,14 @@ def alias_keys(model_cls: type[AcademicModel], name: str) -> list[str]:
     return keys
 
 
-def allowed_keys(model_cls: type[AcademicModel]) -> set[str]:
+def allowed_keys(model_cls: type[BaseModel]) -> set[str]:
     allowed: set[str] = set()
     for name in model_cls.model_fields:
         allowed.update(alias_keys(model_cls, name))
     return allowed
 
 
-def value_for(model_cls: type[AcademicModel], data: dict[str, Any], name: str) -> Any:
+def value_for(model_cls: type[BaseModel], data: dict[str, Any], name: str) -> Any:
     for key in alias_keys(model_cls, name):
         if key in data:
             return data[key]
@@ -72,7 +72,7 @@ class SchemaStep(BaseStep):
 
         data = extract_json(ctx.raw_output)
         if not isinstance(data, dict):
-            data = model_cls.parse_text(ctx.raw_output)
+            data = parse_model_text(model_cls, ctx.raw_output)
         if not isinstance(data, dict):
             ctx.parsed, ctx.model, ctx.valid = None, None, False
             ctx.text = strip_markdown_fences(ctx.raw_output).strip()
@@ -126,8 +126,8 @@ class SchemaStep(BaseStep):
         return StepResult(name=self.name, passed=True, score=1.0, reason=reason, ms=self.elapsed_ms(started))
 
     @staticmethod
-    def _required_coverage(model_cls: type[AcademicModel], data: dict[str, Any]) -> float:
-        required = model_cls.required_fields()
+    def _required_coverage(model_cls: type[BaseModel], data: dict[str, Any]) -> float:
+        required = required_field_names(model_cls) or []
         if not required:
             return 0.0
         hits = sum(1 for name in required if is_filled(value_for(model_cls, data, name)))

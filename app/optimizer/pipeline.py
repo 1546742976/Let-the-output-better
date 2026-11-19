@@ -14,7 +14,7 @@ from typing import Any
 from app.audit import AuditLog
 from app.optimizer.context import StepContext
 from app.optimizer.steps import REGISTRY
-from app.optimizer.steps.base import StepResult
+from app.optimizer.steps.base import BaseStep, StepResult
 from app.optimizer.steps.rules import RulesStep
 from app.providers import build_provider
 from app.providers.base import BaseProvider
@@ -74,6 +74,29 @@ class OptimizeResult:
         }
 
 
+async def _execute_step(
+    ctx: StepContext, step_class: type[BaseStep], config: StepConfig, *, error_key: str | None = None
+) -> StepResult:
+    """执行一个步骤并隔离异常：单步故障不断链，只记录原因。
+
+    管线里每一次步骤执行都必须走这里。"有的调用走隔离、有的不走"会让同一次运行出现
+    两种失败语义——此前 `_remeasure` 在 try 之外直接调 `RulesStep(...).run(ctx)`，
+    rules 一抛错就冒到最外层 except，把**已经采纳的改写**连同整条结果退回原文。
+    `except Exception` 有意不含 `CancelledError`（它不是 Exception），取消照常上抛。
+    """
+    started = time.perf_counter()
+    try:
+        return await step_class(config, ctx.settings).run(ctx)
+    except Exception as exc:
+        ctx.errors.append(error_key or f"step_error({config.name})")
+        return StepResult(
+            name=config.name,
+            passed=False,
+            reason=f"步骤异常已隔离：{type(exc).__name__}: {exc}",
+            ms=int((time.perf_counter() - started) * 1000),
+        )
+
+
 async def _run_steps(ctx: StepContext) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for step_config in ctx.config.steps:
@@ -89,30 +112,31 @@ async def _run_steps(ctx: StepContext) -> list[dict[str, Any]]:
         step = step_class(step_config, ctx.settings)
         if not step.should_run(ctx):
             continue
-        started = time.perf_counter()
-        try:
-            result = await step.run(ctx)
-        except Exception as exc:  # 步骤级隔离：单步异常不断链，仅记录原因
-            result = StepResult(
-                name=step_config.name,
-                passed=False,
-                reason=f"步骤异常已隔离：{type(exc).__name__}: {exc}",
-                ms=int((time.perf_counter() - started) * 1000),
-            )
-            ctx.errors.append(f"step_error({step_config.name})")
-        recorded = result.as_dict()
+        recorded = (await _execute_step(ctx, step_class, step_config)).as_dict()
         if step_config.name == "simplify" and "采纳通俗化重写" in ctx.changes:
             # rules 跑在 simplify 之前；改写发生后不重算，score 描述的就只是输入而非交付物。
-            await _remeasure(ctx)
-            recorded["score_after"] = ctx.score
+            status = await _remeasure(ctx)
+            if status == "measured":
+                recorded["score_after"] = ctx.score
+            elif status == "failed":
+                # 没重算成功就诚实留空：写改前的分数会把"交付物"说成"输入"。
+                recorded["score_after"] = None
         results.append(recorded)
     return results
 
 
-async def _remeasure(ctx: StepContext) -> None:
-    """改写之后重算一次评分，只更新上下文，不再产生第二个 rules 步骤。"""
-    config = ctx.config.step("rules") or StepConfig(name="rules")
-    await RulesStep(config, ctx.settings).run(ctx)
+async def _remeasure(ctx: StepContext) -> str:
+    """改写之后重算一次评分，只更新上下文，不再产生第二个 rules 步骤。
+
+    返回 `measured` / `failed` / `skipped`：评分被关闭时压根不该重算（否则"关了评分
+    却悄悄算了一次"是另一种静默不一致），失败时保留改前分数并记因，不得牵连改写。
+    """
+    config = ctx.config.step("rules")
+    if config is None or not config.enabled:
+        return "skipped"
+    key = "remeasure_error(rules)"
+    await _execute_step(ctx, RulesStep, config, error_key=key)
+    return "failed" if key in ctx.errors else "measured"
 
 
 def _final_output(ctx: StepContext) -> Any:
