@@ -73,6 +73,7 @@ const state = {
   selectedLine: null,
   harnessNotes: {},
   auditTotal: 0,
+  auditError: "",
   query: "",
   sort: "new",
   currentRecord: null,
@@ -529,7 +530,11 @@ function renderHistory() {
     const note = el(
       "div",
       "muted-note",
-      state.query.trim() ? `没有匹配「${state.query.trim()}」的记录。` : "暂无审计记录。运行一次优化即可在此留痕。"
+      state.query.trim()
+        ? `没有匹配「${state.query.trim()}」的记录。`
+        : state.auditError
+          ? "审计读取失败，无法列出记录（原因见抽屉底部）。"
+          : "暂无审计记录。运行一次优化即可在此留痕。"
     );
     note.style.padding = "10px 16px";
     list.appendChild(note);
@@ -574,13 +579,21 @@ async function loadHistory() {
     const data = await getJSON("/v1/audits?limit=60");
     state.items = data.items || [];
     state.auditTotal = data.total_lines || 0;
+    // 后端读不动审计时返回 200＋error（只坏历史面板，不 500 整页）：
+    // 不展示就会伪装成"暂无记录"，把配置/权限问题藏成空列表。
+    state.auditError = String(data.error || "");
     const exact = data.total_exact !== false;
     const totalText = exact ? `${data.total_lines} 条` : `尾部 ${data.total_lines} 条（窗口下界）`;
-    foot.textContent = `${state.items.length} / ${totalText}${data.skipped ? ` · 跳过损坏 ${data.skipped}` : ""}`;
+    foot.textContent = state.auditError
+      ? state.auditError
+      : `${state.items.length} / ${totalText}${data.skipped ? ` · 跳过损坏 ${data.skipped}` : ""}`;
+    foot.classList.toggle("error", Boolean(state.auditError));
     renderEnv(data.total_lines, exact);
   } catch (error) {
     state.items = [];
+    state.auditError = error.message;
     foot.textContent = `历史读取失败：${error.message}`;
+    foot.classList.add("error");
   }
   renderHistory();
   renderStats();
@@ -1244,7 +1257,10 @@ async function loadHarnesses(probe) {
     renderDetected(data);
     renderProfileNotes();
     if (probe) {
-      statusNode.textContent = data.probed ? "探测完成" : "驱动未启用，已跳过探测";
+      const cached = Number(data.probe_cached || 0);
+      statusNode.textContent = data.probed
+        ? `探测完成${cached ? ` · 缓存 ${cached} 项（有效期内直接复用，不重复起进程）` : ""}`
+        : "驱动未启用，已跳过探测";
       statusNode.classList.remove("error");
     }
   } catch (error) {

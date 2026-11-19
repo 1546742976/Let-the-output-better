@@ -5,6 +5,7 @@ import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -12,6 +13,7 @@ from fastapi.testclient import TestClient
 
 import app.main as api
 from app import viewer
+from app.harness.detect import clear_probe_cache
 from app.settings import PipelineConfig, Settings
 
 
@@ -247,3 +249,96 @@ class TestAuditCarriesInputText:
         items = client.get("/v1/audits").json()["items"]
         assert items[0]["input_text"] == "原文"
         assert items[0]["final_output"]["title"] == "T"
+
+
+class TestAuditReadFailure:
+    def test_empty_file_is_exact_zero(self, tmp_path: Path):
+        path = tmp_path / "audit.jsonl"
+        path.write_text("", encoding="utf-8")
+        payload = viewer.read_audit_tail(path, limit=5)
+        assert payload["total_lines"] == 0
+        assert payload["total_exact"] is True
+        assert payload["error"] == ""
+
+    def test_unreadable_file_degrades_with_reason(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """stat 成功但 open 失败（权限/占用）：与目录降级同口径，error 必须带原因而不是空列表。"""
+        path = tmp_path / "audit.jsonl"
+        write_records(path, [{"request_id": "a"}])
+
+        def deny(*args: Any, **kwargs: Any) -> Any:
+            raise PermissionError("模拟：文件被占用")
+
+        monkeypatch.setattr(Path, "open", deny)
+        payload = viewer.read_audit_tail(path, limit=5)
+        assert payload["items"] == []
+        assert payload["total_exact"] is False
+        assert "审计文件读取失败" in payload["error"]
+
+
+class TestAvailableProfiles:
+    def test_composite_harness_lists_profile_members(self):
+        members = {"alpha": object(), "beta": object()}
+        harness = SimpleNamespace(profiles=lambda: members)
+        request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(harness=harness)))
+        assert viewer._available_profiles(request) is members
+
+    def test_single_harness_falls_back_to_name(self):
+        harness = SimpleNamespace(name="solo")
+        request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(harness=harness)))
+        assert viewer._available_profiles(request) == {"solo": harness}
+
+
+class TestHarnessStatusProbe:
+    @contextmanager
+    def _client(
+        self, monkeypatch: pytest.MonkeyPatch, audit_file: Path, *, enabled: bool = True
+    ) -> Iterator[TestClient]:
+        settings = Settings(
+            _env_file=None,
+            provider="mock",
+            audit_path=str(audit_file),
+            harness_enabled=enabled,
+            harness_command="",
+            harness_detect=False,
+            harness_providers="openai-api",
+            openai_api_key="",
+        )
+        with running_client(monkeypatch, settings) as instance:
+            yield instance
+
+    def test_probe_runs_and_exposes_cache_size(self, audit_file: Path, monkeypatch: pytest.MonkeyPatch):
+        """probe=true 逐个候选探测；probe_cached 让页面能解释"这次点击没起新进程"。"""
+        clear_probe_cache()
+        candidate = SimpleNamespace(
+            profile="stub",
+            label="Stub",
+            drivable=False,
+            status="missing",
+            detail="",
+            version="",
+            login="",
+            executable=None,
+            entry=None,
+        )
+        seen: list[Any] = []
+
+        async def fake_probe(item: Any, *, timeout_s: float) -> Any:
+            seen.append((item, timeout_s))
+            return item
+
+        monkeypatch.setattr(viewer, "scan", lambda: [candidate, candidate])
+        monkeypatch.setattr(viewer, "probe_candidate", fake_probe)
+        with self._client(monkeypatch, audit_file) as client:
+            payload = client.get("/v1/harnesses?probe=true").json()
+        assert payload["probed"] is True
+        assert len(seen) == 2
+        assert payload["probe_cached"] == 0
+        assert len(payload["detected"]) == 2
+
+    def test_probe_skipped_when_disabled(self, audit_file: Path, monkeypatch: pytest.MonkeyPatch):
+        clear_probe_cache()
+        monkeypatch.setattr(viewer, "scan", lambda: [])
+        with self._client(monkeypatch, audit_file, enabled=False) as client:
+            payload = client.get("/v1/harnesses?probe=true").json()
+        assert payload["probed"] is False
+        assert payload["probe_cached"] == 0

@@ -801,6 +801,10 @@ body {
   color: var(--text-3);
 }
 
+.rail-foot.error {
+  color: var(--red);
+}
+
 /* ---------- 状态点 ---------- */
 
 .dot {
