@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import math
 import re
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 #: 每个句子允许的 hedge 配额：低于此密度的弱化措辞视为正当的不确定性表达。
 HEDGE_PER_SENTENCE = 1 / 3
@@ -434,6 +436,56 @@ def referents(sentence: str) -> list[str]:
     return list(dict.fromkeys(found))
 
 
+#: 事实比较用的数字切分器。三条不显眼但会致命的规则：
+#: 千分位写成一个 token（否则 `1,200,300` 被拆成 `1200`+`300`，规范的 `1200300`
+#: 反而被判"数值变化"）；前置否定环视让 `2019-2023` 读作两个年份而不是
+#: `2019` + `-2023`（否则"改成 2019 至 2023"会被误拒）；符号只在不是区间连接号时计入。
+_FACT_NUMBER = re.compile(r"(?<![\d.,])[-−+]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
+_PERCENT_MARK = re.compile(r"%|％|百分之")
+_POINT_MARK = re.compile(r"个百分点|个点")
+# 只把"看起来像缩写"的全大写串当锚点：紧贴汉字也要成立（"发表于CVPR"此前根本不匹配），
+# 且不接受后面接小写字母的片段；纯英文全大写功能词用一张小停表兜住。
+_ACRONYM = re.compile(r"(?<![A-Za-z])[A-Z]{2,}(?![a-z])")
+_ACRONYM_STOP = frozenset({"THE", "AND", "OR", "NOT", "ALL", "FOR", "OF", "TO", "OK", "ID"})
+
+
+def canonical_number(token: str) -> str:
+    """`1,200,300`/`1200300`/`12.50` 都归一到同一个可比形态。
+
+    必须用 `format(..., "f")`：`Decimal("100").normalize()` 的 `str()` 是 `1E+2`。
+    精度写法（`12.50%` vs `12.5%`）不算事实变化。
+    """
+    cleaned = token.replace(",", "").replace("−", "-")
+    if cleaned.startswith("+"):
+        cleaned = cleaned[1:]
+    return format(Decimal(cleaned).normalize(), "f")
+
+
+def canonical_numbers(text: str) -> Counter[str]:
+    return Counter(canonical_number(token) for token in _FACT_NUMBER.findall(text))
+
+
+def unit_classes(text: str) -> Counter[str]:
+    """单位类别计数：`88.5%` 改成 `88.5 个百分点` 是两个不同的事实断言。
+
+    只比类别计数、不逐个数字配对——配对要把标记归属到具体数字上，收益相同但多一
+    处会错的启发式。
+    """
+    classes: Counter[str] = Counter()
+    percent = len(_PERCENT_MARK.findall(text))
+    point = len(_POINT_MARK.findall(text))
+    if percent:
+        classes["百分号"] = percent
+    if point:
+        classes["百分点"] = point
+    return classes
+
+
+def acronym_anchors(text: str) -> set[str]:
+    """全大写缩写集合：删掉 `CVPR` 是丢事实，把 `CVPR` 写成 `cvpr` 不是（只查缺失）。"""
+    return {token for token in _ACRONYM.findall(text) if token not in _ACRONYM_STOP}
+
+
 def _qualification_markers(sentence: str) -> dict[str, int]:
     hits = _grouped_literal_hits(sentence)
     markers = {group: sum(count for _, count in hits[group]) for group in _QUALIFICATION_GROUPS}
@@ -449,6 +501,16 @@ def _scope_family(token: str) -> tuple[str, ...]:
         if token in family:
             return family
     return (token,)
+
+
+def scope_group(token: str) -> tuple[str, ...]:
+    """同一个范围概念的等价写法（数据集/评测集/基准）；不属于任何族的 token 自成一组。
+
+    判定层（`_in_source`）与采纳闸门（`check_boundaries`）必须共用它：两处各留一套
+    词汇知识时，会出现"判定认为同族互认、闸门却按逐字判丢失"的自相矛盾，合法改写
+    被整字段拒绝，而拒绝理由本身是假话。
+    """
+    return _scope_family(token)
 
 
 def _in_source(token: str, source_norm: str) -> bool:
@@ -502,7 +564,8 @@ def qualifications(text: str, source: str | None = None) -> list[dict[str, objec
             {
                 "index": index,
                 "verdict": verdict,
-                "text": sentence[:48],
+                "sentence": sentence,  # 未截断：闸门与评估都按整句取指称
+                "text": sentence[:48],  # 截断：只用于留痕与页面展示
                 "referents": referents(sentence)[:4],
             }
         )

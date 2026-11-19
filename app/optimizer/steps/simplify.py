@@ -11,7 +11,6 @@
 
 from __future__ import annotations
 
-import re
 import time
 from collections import Counter
 
@@ -20,11 +19,14 @@ from app.optimizer.steps import register_step
 from app.optimizer.steps.base import BaseStep, StepResult
 from app.plain import (
     GROUP_WEIGHTS,
-    SCOPE_NOUNS,
+    acronym_anchors,
+    canonical_numbers,
     normalize_text,
     qualifications,
     referents,
     report,
+    scope_group,
+    unit_classes,
 )
 from app.providers.base import ProviderError
 from app.textio import load_prompt, render_prompt
@@ -38,59 +40,70 @@ MAX_FIELDS = 3
 SYSTEM = "你是去防御化改写器：像作者本人陈述结论那样重写，只输出改写后的文本，不解释、不加围栏。"
 DEFAULT_PROMPT = load_prompt("prompts/simplify.txt")
 
-_NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
-# 只把全大写缩写（CVPR、GPT 之类）当作引用锚点：普通词的大小写变化不应触发拒绝。
-_ACRONYM = re.compile(r"\b[A-Z]{2,6}\b")
 #: 结构化输出里不参与改写的字段（标识符与短枚举改写风险高于收益）。
 SKIP_FIELDS = frozenset({"doi", "type", "year", "value", "baseline", "unit"})
 
 
-def fact_tokens(text: str) -> tuple[Counter, set[str]]:
-    numbers = Counter(token.replace(",", "") for token in _NUMBER.findall(text))
-    anchors = set(_ACRONYM.findall(text))
-    return numbers, anchors
+def fact_tokens(text: str) -> tuple[Counter[str], set[str]]:
+    return canonical_numbers(text), acronym_anchors(text)
 
 
 def check_facts(before: str, after: str) -> str | None:
-    """返回首个事实不一致的原因；一致则返回 ``None``。"""
+    """返回首个事实不一致的原因；一致则返回 ``None``。
+
+    顺序是"数值 → 单位类别 → 缩写锚点"：前两条管数字有没有被改动或换了说法，第三条
+    管 `CVPR` 这类不可再生的专名有没有被抹掉。锚点只查缺失不查多余——改写里出现的
+    新缩写另有事实溯源维度去管，闸门在这里从严只会误杀合法改写。
+    """
     numbers_before, anchors_before = fact_tokens(before)
     numbers_after, anchors_after = fact_tokens(after)
     if numbers_before != numbers_after:
         return f"数值变化：{dict(numbers_before)} → {dict(numbers_after)}"
+    units_before, units_after = unit_classes(before), unit_classes(after)
+    if units_before != units_after:
+        return f"单位类别变化：{dict(units_before)} → {dict(units_after)}"
     missing = anchors_before - anchors_after
     if missing:
         return f"关键表述丢失：{'、'.join(sorted(missing))}"
     return None
 
 
-def _scope_keys(text: str, source: str | None) -> set[str]:
-    """改写必须留住的限定语指称集合（boundary 与 unverified 都受保护）。"""
-    keys: set[str] = set()
+def _scope_groups(text: str, source: str | None) -> list[frozenset[str]]:
+    """改写必须留住的范围指称，按"同一概念的等价写法"分组。
+
+    两处刻意的选择：
+    - 取 `item["sentence"]` 而不是展示用的 `text[:48]`——落在第 48 字之后的指称
+      （"……未在任何公开数据集上评测"）此前对闸门完全不可见，删掉也不会被拦；
+    - 族内写法归进同一组，组里任意一个写法还在就算保住，与判定层的同族互认同源。
+    """
+    groups: list[frozenset[str]] = []
     for item in qualifications(text, source):
         if item["verdict"] not in ("boundary", "unverified"):
             continue
-        for token in referents(str(item["text"])):
-            keys.add(normalize_text(token))
-        for noun in SCOPE_NOUNS:
-            if noun in str(item["text"]):
-                keys.add(normalize_text(noun))
-    return keys
+        for token in referents(str(item["sentence"])):
+            normalized = frozenset({normalize_text(member) for member in scope_group(token)}) - {""}
+            if normalized:
+                groups.append(normalized)
+    return groups
 
 
 def check_boundaries(before: str, after: str, source: str | None) -> str | None:
-    """改写前判为研究边界的限定语，其指称若在改写后消失即为误删。
+    """改写前判为研究边界的限定语，其范围指称若在改写后**整族消失**即为误删。
 
     这是"保留真正影响结论的研究边界"唯一的强制执行方式——写在提示词里只是希望。
+    判"整族消失"而非"逐字消失"：把"仅在 3 个数据集上验证"改成"仅在 3 个基准上验证"
+    范围没变，逐字比对会把合法改写连字段一起作废，且拒绝理由本身是假话。
     """
-    required = {key for key in _scope_keys(before, source) if key}
+    required = _scope_groups(before, source)
     if not required:
         return None
     # 键是归一化后的指称，比对对象也必须归一化：否则 "12.5" 归一成 "125" 后
     # 在原文里"找不到"，会把合法改写误判成丢失边界。
     haystack = normalize_text(after)
-    lost = sorted(key for key in required if key not in haystack)
+    lost = [group for group in required if not any(key in haystack for key in group)]
     if lost:
-        return f"丢失研究边界（{len(lost)} 处指称消失：{'、'.join(lost[:3])}）"
+        names = "、".join("/".join(sorted(group)) for group in lost[:3])
+        return f"丢失研究边界（{len(lost)} 处范围指称整族消失：{names}）"
     return None
 
 

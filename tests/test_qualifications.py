@@ -113,4 +113,7 @@ def test_a_bare_number_does_not_establish_a_scope():
 def test_qualifications_payload_is_shaped_for_the_page():
     marks = qualifications("本结论仅在 3 个数据集上得到验证。这或许只是探索性证据。", None)
     assert {str(item["verdict"]) for item in marks} == {"unverified", "ungrounded"}
-    assert all({"index", "verdict", "text", "referents"} == set(item) for item in marks)
+    # sentence 是给程序用的未截断原句，text 是给留痕/页面用的截断展示：
+    # 两者混用曾让闸门看不见第 48 字之后的指称。
+    assert {"index", "verdict", "sentence", "text", "referents"} == {key for item in marks for key in item}
+    assert all(str(item["text"]) == str(item["sentence"])[:48] for item in marks)

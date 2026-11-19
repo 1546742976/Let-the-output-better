@@ -110,7 +110,7 @@ def defensive_writing_stats(sample: dict[str, Any], final: Any) -> dict[str, int
     after = final if isinstance(final, str) else json.dumps(final, ensure_ascii=False)
     source = sample.get("input_text") or None
     items = qualifications(before, source)
-    ungrounded = [str(item["text"]) for item in items if item["verdict"] == "ungrounded"]
+    ungrounded = [str(item["sentence"]) for item in items if item["verdict"] == "ungrounded"]
     haystack = normalize_text(after)
     return {
         "boundary_total": sum(1 for item in items if item["verdict"] in ("boundary", "unverified")),
