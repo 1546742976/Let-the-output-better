@@ -274,6 +274,18 @@ function renderOptionToggles() {
   input.value = state.config ? String(state.config.timeout_ms) : "8000";
   timeout.appendChild(input);
   box.appendChild(timeout);
+  const refStyle = el("label", "opt-timeout");
+  refStyle.appendChild(el("span", null, "引用风格"));
+  const styleSelect = el("select");
+  styleSelect.id = "field-reference-style";
+  styleSelect.setAttribute("aria-label", "引用风格（每请求覆盖配置）");
+  [["", "跟随配置"], ["gb-t-7714", "GB/T 7714"], ["apa", "APA"]].forEach(([value, label]) => {
+    const option = el("option", null, label);
+    option.value = value;
+    styleSelect.appendChild(option);
+  });
+  refStyle.appendChild(styleSelect);
+  box.appendChild(refStyle);
   syncOptionState();
 }
 
@@ -1009,13 +1021,16 @@ function collectOptions() {
 }
 
 function collectPayload() {
-  return {
+  const payload = {
     raw_output: $("field-raw").value,
     schema: $("field-schema").value || null,
     instruction: $("field-instruction").value,
     input_text: $("field-input-text").value,
     options: collectOptions(),
   };
+  const style = $("field-reference-style").value;
+  if (style) payload.reference_style = style;
+  return payload;
 }
 
 function applyOptimizeResponse(response, fallbackRawOutput) {
@@ -1256,6 +1271,7 @@ function resetRun(announce = false) {
     instruction: $("field-instruction").value,
     inputText: $("field-input-text").value,
     schema: $("field-schema").value,
+    refStyle: $("field-reference-style").value,
     selectedLine: state.selectedLine,
   };
   const hadContent = Boolean(snapshot.raw || snapshot.instruction || snapshot.inputText);
@@ -1266,6 +1282,7 @@ function resetRun(announce = false) {
   $("field-instruction").value = "";
   $("field-input-text").value = "";
   $("field-schema").value = "";
+  $("field-reference-style").value = "";
   $("result-panel").hidden = true;
   state.diffRows = [];
   state.diffDegraded = false;
@@ -1284,6 +1301,7 @@ function resetRun(announce = false) {
           $("field-instruction").value = snapshot.instruction;
           $("field-input-text").value = snapshot.inputText;
           $("field-schema").value = snapshot.schema;
+          $("field-reference-style").value = snapshot.refStyle;
           state.selectedLine = snapshot.selectedLine;
           const record = state.items.find((item) => item.line_no === snapshot.selectedLine);
           if (record) {

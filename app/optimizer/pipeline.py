@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import count
-from typing import Any
+from typing import Any, get_args
 
 from app.audit import AuditLog
 from app.optimizer.context import StepContext
@@ -176,6 +176,7 @@ async def optimize(
     request_id: str | None = None,
     audit: AuditLog | None = None,
     audit_extra: dict[str, Any] | None = None,
+    reference_style: str | None = None,
 ) -> OptimizeResult:
     """对一次模型输出执行后置优化；任何异常都以“返回原始输出”收口。"""
     base_settings = settings or get_settings()
@@ -188,6 +189,13 @@ async def optimize(
             pipeline = pipeline.with_step(OPTION_TO_STEP[name], enabled=bool(flag))
     if strict is not None:
         pipeline = pipeline.with_step(OPTION_TO_STEP["strict"], strict=bool(strict))
+    if reference_style is not None:
+        # model_copy(update=…) 不做校验：坏值会静默落进 render 的 else 分支，
+        # 表现是"选了 APA 却按 GB/T 排"。入口炸掉才是可执行的诊断。
+        allowed = get_args(StepConfig.model_fields["reference_style"].annotation)
+        if reference_style not in allowed:
+            raise ValueError(f"未知 reference_style={reference_style!r}，可选：{', '.join(allowed)}")
+        pipeline = pipeline.with_step("format", reference_style=reference_style)
 
     effective = apply_overrides(base_settings, pipeline)
     if timeout_ms is not None:

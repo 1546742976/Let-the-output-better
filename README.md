@@ -270,6 +270,8 @@ print(result.degraded)       # 是否发生降级
 }
 ```
 
+`reference_style` 可选 `"gb-t-7714"` / `"apa"`，**逐请求**覆盖 `pipeline.yaml` 里 format 步骤的引用风格；缺省跟随配置，`POST /v1/run` 同样接受。未知取值在入口 422：请求模型是 `extra="forbid"` 加 Literal，而管线侧 `model_copy(update=…)` 不校验 Literal，坏值若漏进去会静默按 GB/T 排——所以 `optimize()` 入口另行炸 `ValueError`，两层都有测试钉住。
+
 响应示例：
 
 ```json
@@ -339,7 +341,7 @@ class CcfVenueStep(BaseStep):
 | 区域 | 内容 | 数据来源 |
 | ------ | ------ | ------ |
 | 历史会话 | schema、状态、得分、耗时、变更标记；搜索、三种排序；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
-| 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关与 `timeout_ms`、示例一键填入 | `GET /v1/config` |
+| 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关、`timeout_ms` 与引用风格下拉（跟随配置 / GB/T 7714 / APA，逐请求覆盖）、示例一键填入 | `GET /v1/config` |
 | harness 面板 | profile 下拉、检测结果与「驱动 harness 并优化」；驱动不可用时给出原因，请求体只发 `task` 与 profile 名 | `GET /v1/harnesses`、`POST /v1/run` |
 | 结果流 | score 环（环上刻度为采纳阈值）、结论行、步骤时间线（条长为得分，无得分时按耗时占比）、评分条（散文四维：通俗度/自信度/简洁度/一致性）、变更与标记、错误、复制输出与重跑；`simplify` 一行留痕下挂三组标签——中性=命中的套话、红=删掉的无据限定、绿=保住的研究边界，另有「主张先行」判定 | `POST /v1/optimize` 与该次的审计记录 |
 | 运行环境 | provider、阈值、超时、fail_open、引用风格、审计条数、健康灯 | `GET /v1/config`、`GET /healthz` |
@@ -630,7 +632,7 @@ pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 - harness 装配单测：以桩 `scan` 结果与假成员覆盖 `_detected()` 过滤、`HarnessRegistry` 选择与级联关闭、`build_harness` 多源合并，验证装配逻辑且全程不 exec。
 - 引用方言单测：断言姓名判定否决、类型推断、`render_apa` 各作者数与 `parse_citation` 失败退回等确定性分支。
 
-v0.6 实测：502 项用例通过，`app/` 行与分支综合覆盖率 94.47%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，写错即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
+v0.6 实测：509 项用例通过，`app/` 行与分支综合覆盖率 94.25%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，写错即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
 
 ## 14. 版本规划
 
