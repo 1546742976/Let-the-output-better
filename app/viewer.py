@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from app.settings import apply_overrides, collect_config_warnings
 
 WEB_DIR = Path(__file__).parent / "web"
 DEFAULT_AUDIT_ITEMS = 50
+logger = logging.getLogger(__name__)
 MAX_AUDIT_ITEMS = 200
 # 读取窗口上限：避免审计文件很大时为了统计损坏行而解析整个文件。
 MAX_SCANNED_LINES = 2000
@@ -101,7 +103,8 @@ def read_audit_tail(path: str | Path, limit: int) -> dict[str, Any]:
         with audit_path.open("rb") as handle:
             window, reached_bof, full_count = _read_tail_window(handle, size, scan_cap, MAX_SCANNED_BYTES)
     except OSError as exc:
-        return {**empty, "total_exact": False, "error": f"审计文件读取失败：{exc}"}
+        logger.exception("Failed to read audit file: %s", audit_path, exc_info=exc)
+        return {**empty, "total_exact": False, "error": "审计文件读取失败"}
 
     # line_no 以全量计数为基准，窗口被截断时仍指向文件内真实行号（未读到的部分不改变其序号）
     items: list[dict[str, Any]] = []
