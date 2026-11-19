@@ -225,6 +225,28 @@ OPENAI_MODEL=gpt-4o-mini
 
 接入 DeepSeek、Qwen 或本地 vLLM 时，仅需调整 `OPENAI_BASE_URL` 与 `OPENAI_MODEL`，无需修改代码。
 
+非 OpenAI 协议的原生适配器（v0.7）：
+
+```env
+PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-sonnet-4-5
+```
+
+```env
+PROVIDER=gemini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+```env
+PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+三者与 `openai` 共用同一套失败语义（限流/超时/坏结构分别抛 `ProviderError`/`ProviderTimeout`），审计里的 `provider` 字段记录实际装配名，页面健康灯同源。协议差异在适配器内消化：Anthropic 的 system 是顶层字段且无 `response_format`（json_mode 折进 system 提示），Gemini 走 `systemInstruction` 与 `generationConfig.responseMimeType`、鉴权用 `x-goog-api-key` 头而非 URL query（密钥不进访问日志），OpenRouter 复用 OpenAI 兼容面但单列 provider 名以区分路由与直连的限流/账单口径。缺密钥在启动期即报错，不留到第一次调用。
+
 ## 7. 使用指南
 
 ### 7.1 Python 调用
@@ -411,10 +433,19 @@ curl -s "localhost:8000/v1/harnesses?probe=true"  # 额外跑 --version / login 
 
 | 变量 | 默认值 | 说明 |
 | ------ | -------- | ------ |
-| `PROVIDER` | `mock` | `mock` 或 `openai` |
+| `PROVIDER` | `mock` | `mock`、`openai`、`anthropic`、`gemini` 或 `openrouter` |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容服务地址 |
 | `OPENAI_API_KEY` | 空 | 仅 `provider=openai` 时必填 |
 | `OPENAI_MODEL` | `gpt-4o-mini` | 修复与通俗化改写使用的模型 |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com/v1` | Anthropic Messages 服务地址 |
+| `ANTHROPIC_API_KEY` | 空 | 仅 `provider=anthropic` 时必填 |
+| `ANTHROPIC_MODEL` | `claude-sonnet-4-5` | Anthropic 模型名 |
+| `GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta` | Gemini generateContent 服务地址 |
+| `GEMINI_API_KEY` | 空 | 仅 `provider=gemini` 时必填 |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini 模型名 |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter 路由地址（OpenAI 兼容协议） |
+| `OPENROUTER_API_KEY` | 空 | 仅 `provider=openrouter` 时必填 |
+| `OPENROUTER_MODEL` | `openai/gpt-4o-mini` | OpenRouter 模型名（带厂商前缀） |
 | `OPTIMIZE_SCORE_THRESHOLD` | `0.8` | 低于该分值触发修复 |
 | `OPTIMIZE_MAX_REPAIR_RETRIES` | `1` | 修复调用上限 |
 | `OPTIMIZE_TIMEOUT_MS` | `8000` | 整条管线的时间预算 |
@@ -632,7 +663,7 @@ pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 - harness 装配单测：以桩 `scan` 结果与假成员覆盖 `_detected()` 过滤、`HarnessRegistry` 选择与级联关闭、`build_harness` 多源合并，验证装配逻辑且全程不 exec。
 - 引用方言单测：断言姓名判定否决、类型推断、`render_apa` 各作者数与 `parse_citation` 失败退回等确定性分支。
 
-v0.6 实测：509 项用例通过，`app/` 行与分支综合覆盖率 94.25%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，写错即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
+v0.6 实测：530 项用例通过，`app/` 行与分支综合覆盖率 93.97%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，写错即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
 
 ## 14. 版本规划
 
@@ -643,7 +674,7 @@ v0.6 实测：509 项用例通过，`app/` 行与分支综合覆盖率 94.25%（
 | v0.4 | 通俗化改为主线：词表与句式检测、plainness/concision 评分、散文默认开启 | 已交付 |
 | v0.5 | 防御性写作成为可判定目标：无据限定/研究边界分类、自信度与主张先行、边界丢失否决采纳 | 已交付 |
 | v0.6 | harness 驱动成为任务主路径：`HARNESS_ENABLED` 默认开启、页面默认入口跟随可用性、无成员时降级回粘贴 | 已交付 |
-| v0.7 | 标注集扩充到真实语料抽样，据此校准指称启发式阈值；新增 Anthropic、Gemini、OpenRouter 适配器 | 规划中 |
+| v0.7 | 新增 Anthropic、Gemini、OpenRouter 适配器（已交付）；标注集扩充到真实语料抽样，据此校准指称启发式阈值（规划中） | 部分交付 |
 | v0.8 | 可选 LLM 评分维度（含自然度）、多候选输出重排 | 规划中 |
 | v0.9 | 基于审计数据的阈值调优与漂移检测 | 规划中 |
 | v1.0 | 持久化存储、监控接入与可视化面板 | 规划中 |
