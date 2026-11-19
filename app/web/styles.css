@@ -1214,6 +1214,18 @@ body {
   margin: 0;
 }
 
+/* 对照是主角：环境面板被长 audit_path、告警、历史条数撑高时，
+   会把 flex:1 的对照压成一条看不见的缝，所以给环境封顶自己滚，
+   再给对照兜一个最小可见高度。 */
+#section-env {
+  max-height: 34vh;
+  overflow: auto;
+}
+
+#section-diff {
+  min-height: 240px;
+}
+
 .panel-grow {
   flex: 1;
   overflow: hidden;
@@ -2415,6 +2427,27 @@ kbd {
     overflow: visible;
     padding: 0 18px 18px;
     border-left: 0;
+  }
+
+  /* 窄屏下右栏进入文档流，对照落到整篇末尾——要滚到底才看得到刚跑完的 diff。
+     这里才真正需要 sticky：宽屏那侧的容器自身不滚动，sticky 是空操作。 */
+  #section-diff {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    max-height: 60vh;
+    background: var(--surface);
+  }
+
+  /* 环境面板在流式布局里不需要宽屏那套封顶，恢复自然高度 */
+  #section-env {
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* 给 sticky 卡片让出可视空间，避免它压住主列最后一块内容 */
+  .workspace {
+    padding-bottom: 40vh;
   }
 
   .workspace {
