@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -15,7 +14,7 @@ from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.harness.detect import as_dict, scan
+from app.harness.detect import as_dict, probe_cache_size, scan
 from app.harness.detect import probe as probe_candidate
 from app.harness.profiles import PROFILES
 from app.schemas import SCHEMA_REGISTRY, optional_field_names, required_field_names
@@ -219,9 +218,12 @@ async def harness_status(
     probed = bool(probe and settings.harness_enabled)
     if probed:
         timeout_s = settings.harness_probe_timeout_ms / 1000
-        candidates = list(
-            await asyncio.gather(*(probe_candidate(candidate, timeout_s=timeout_s) for candidate in candidates))
-        )
+        # 顺序 await 而不是 gather：探测会执行"从磁盘找到的文件"，
+        # 与驱动面一样要限流；缓存与单飞锁在 detect 内部，这里只保证不同时排队多份。
+        fresh = []
+        for candidate in candidates:
+            fresh.append(await probe_candidate(candidate, timeout_s=timeout_s))
+        candidates = fresh
     available = sorted(_available_profiles(request))
     return {
         "enabled": settings.harness_enabled,
@@ -229,6 +231,8 @@ async def harness_status(
         "available": available,
         "api_ready": bool(settings.openai_api_key),
         "probed": probed,
+        # 让"这次点检测其实没起新进程"这件事可见，否则缓存看起来像结果没刷新
+        "probe_cached": probe_cache_size(),
         "detected": [as_dict(candidate) for candidate in candidates],
         "notes": {profile.name: list(profile.notes) for profile in PROFILES.values()},
     }
