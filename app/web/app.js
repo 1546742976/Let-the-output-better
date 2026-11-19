@@ -11,7 +11,9 @@ const DIAL_CIRCUMFERENCE = 2 * Math.PI * DIAL_RADIUS;
 const THEME_KEY = "output-better-theme";
 
 const OPTION_FIELDS = [
-  { key: "rules", label: "评分 rules", step: "rules" },
+  // key 是请求体 options 的字段名（服务端 Options.score），step 是管线步骤名（rules）：
+  // 两者混为一谈过一次，勾选"评分"因此完全无效且零告警。
+  { key: "score", label: "评分 rules", step: "rules" },
   { key: "repair", label: "修复 repair", step: "repair" },
   { key: "format", label: "格式化 format", step: "format" },
   { key: "simplify", label: "去防御化 simplify", step: "simplify" },
@@ -46,7 +48,7 @@ const STEP_HUE = {
   format: "--red-bright",
   simplify: "--orange",
 };
-const STEP_OPTION = { schema: "strict", rules: "rules", repair: "repair", format: "format", simplify: "simplify" };
+const STEP_OPTION = { schema: "strict", rules: "score", repair: "repair", format: "format", simplify: "simplify" };
 const SORTS = [
   { key: "new", label: "最新优先" },
   { key: "old", label: "最早优先" },
@@ -311,6 +313,12 @@ function renderEnv(auditTotal, totalExact = true) {
   pathValue.title = String(config.audit_path || "");
   list.appendChild(pathRow);
   list.appendChild(pathValue);
+  // "写了 .env 但不生效"必须在这里看得见：这些组合不会报错，只会在半年后变成一个谜。
+  const warnings = config.warnings || [];
+  if (warnings.length) {
+    list.appendChild(el("dt", null, "配置告警"));
+    list.appendChild(el("dd", "env-warn", warnings.join("；")));
+  }
 }
 
 async function refreshHealth() {

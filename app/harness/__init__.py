@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from app.harness.base import (
     BaseHarness,
+    ConcurrencyBudget,
     HarnessBusy,
     HarnessError,
     HarnessRun,
@@ -102,7 +103,7 @@ class HarnessRegistry(BaseHarness):
             await member.aclose()
 
 
-def _explicit(settings: Settings) -> CommandHarness | None:
+def _explicit(settings: Settings, budget: ConcurrencyBudget | None = None) -> CommandHarness | None:
     """v0.3 的显式模式：命令与参数都写在 ``.env`` 里。"""
     if not settings.harness_command:
         return None
@@ -114,10 +115,11 @@ def _explicit(settings: Settings) -> CommandHarness | None:
         max_output_bytes=settings.harness_max_output_bytes,
         max_concurrency=settings.harness_max_concurrency,
         env_allow=tuple(settings.harness_env_list),
+        budget=budget,
     )
 
 
-def _detected(settings: Settings) -> dict[str, BaseHarness]:
+def _detected(settings: Settings, budget: ConcurrencyBudget | None = None) -> dict[str, BaseHarness]:
     """内置 profile：路径来自扫描结果，argv 来自 profiles 常量表。"""
     members: dict[str, BaseHarness] = {}
     for candidate in scan():
@@ -133,11 +135,12 @@ def _detected(settings: Settings) -> dict[str, BaseHarness]:
             max_output_bytes=settings.harness_max_output_bytes,
             max_concurrency=settings.harness_max_concurrency,
             env_allow=tuple(settings.harness_env_list),
+            budget=budget,
         )
     return members
 
 
-def _api(settings: Settings) -> ApiHarness | None:
+def _api(settings: Settings, budget: ConcurrencyBudget | None = None) -> ApiHarness | None:
     """API 形态仅在密钥存在时注册；缺密钥不得让启动失败。"""
     if not settings.openai_api_key:
         return None
@@ -156,6 +159,7 @@ def _api(settings: Settings) -> ApiHarness | None:
         max_output_bytes=settings.harness_max_output_bytes,
         max_concurrency=settings.harness_max_concurrency,
         system_prompt=OPENAI_API.system_prompt,
+        budget=budget,
     )
 
 
@@ -167,17 +171,20 @@ def build_harness(settings: Settings) -> BaseHarness | None:
     def enabled(key: str) -> bool:
         return not allowed or key in allowed
 
+    # 一个进程一份预算：成员各自计数时真实上限是"成员数 × HARNESS_MAX_CONCURRENCY"，
+    # 而 429 对外承诺的是"并发超限"这一件事。
+    budget = ConcurrencyBudget(settings.harness_max_concurrency)
     members: dict[str, BaseHarness] = {}
     if enabled("command"):
-        explicit = _explicit(settings)
+        explicit = _explicit(settings, budget)
         if explicit is not None:
             members["command"] = explicit
     if settings.harness_detect:
-        for key, harness in _detected(settings).items():
+        for key, harness in _detected(settings, budget).items():
             if enabled(key):
                 members[key] = harness
     if enabled(OPENAI_API.name):
-        api = _api(settings)
+        api = _api(settings, budget)
         if api is not None:
             members[OPENAI_API.name] = api
 

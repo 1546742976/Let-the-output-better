@@ -15,12 +15,20 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import re
 import signal
 import tempfile
 import time
 from pathlib import Path
 
-from app.harness.base import BaseHarness, HarnessBusy, HarnessError, HarnessRun, HarnessTimeout, HarnessUnavailable
+from app.harness.base import (
+    BaseHarness,
+    ConcurrencyBudget,
+    HarnessError,
+    HarnessRun,
+    HarnessTimeout,
+    HarnessUnavailable,
+)
 
 OUTPUT_FILE_PLACEHOLDER = "{output_file}"
 STDERR_TAIL_BYTES = 4096
@@ -80,6 +88,7 @@ class CommandHarness(BaseHarness):
         max_output_bytes: int = 262144,
         max_concurrency: int = 1,
         env_allow: tuple[str, ...] = (),
+        budget: ConcurrencyBudget | None = None,
     ) -> None:
         if name is not None:
             self.name = name
@@ -88,9 +97,20 @@ class CommandHarness(BaseHarness):
         self.allowed_commands = list(allowed_commands or [])
         self.cwd = cwd or None
         self.max_output_bytes = max(1024, int(max_output_bytes))
-        self.max_concurrency = max(1, int(max_concurrency))
+        # 不传预算时自建一份：默认行为与逐实例计数完全一致，共享预算由装配方决定。
+        self.budget = budget or ConcurrencyBudget(max_concurrency)
         self.env_allow = tuple(env_allow)
-        self._in_flight = 0
+        #: 最近一次子进程句柄。留着它是为了让"取消/异常之后进程到底死没死"可被断言——
+        #: 这类泄漏在功能上完全静默，只能靠回收后的 returncode 观察。
+        self.last_process: asyncio.subprocess.Process | None = None
+
+    @property
+    def max_concurrency(self) -> int:
+        return self.budget.limit
+
+    @property
+    def _in_flight(self) -> int:
+        return self.budget.in_flight
 
     @property
     def uses_output_file(self) -> bool:
@@ -104,20 +124,17 @@ class CommandHarness(BaseHarness):
     async def run(self, *, task: str, timeout_s: float) -> HarnessRun:
         # 先做白名单校验，避免被拒的调用占用并发额度。
         resolve_allowed_command(self.command, self.allowed_commands)
-        if self._in_flight >= self.max_concurrency:
-            raise HarnessBusy(f"harness 并发已达上限（{self.max_concurrency}），请稍后再试")
-        self._in_flight += 1
+        self.budget.acquire()
         started = time.perf_counter()
         try:
             return await self._execute(task, timeout_s, started)
         finally:
-            self._in_flight -= 1
+            self.budget.release()
 
     async def _execute(self, task: str, timeout_s: float, started: float) -> HarnessRun:
         with tempfile.TemporaryDirectory(prefix="optimize-harness-") as workdir:
             output_file = Path(workdir) / "last_message.txt"
             argv = self._argv(output_file)
-            proc: asyncio.subprocess.Process | None = None
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *argv,
@@ -128,22 +145,32 @@ class CommandHarness(BaseHarness):
                     stderr=asyncio.subprocess.PIPE,
                     start_new_session=True,
                 )
-                stdout, stderr, truncated = await asyncio.wait_for(
-                    self._exchange(proc, task), timeout=max(0.1, timeout_s)
-                )
-            except TimeoutError as exc:
-                await self._terminate(proc)
-                raise HarnessTimeout(f"harness 超时（{timeout_s:.1f}s），已终止子进程") from exc
             except OSError as exc:
                 raise HarnessError(f"无法启动 harness：{exc}") from exc
 
-            exit_code = proc.returncode if proc is not None and proc.returncode is not None else -1
+            self.last_process = proc
+            try:
+                stdout, stderr, truncated = await self._exchange(proc, task, timeout_s)
+            except TimeoutError as exc:
+                raise HarnessTimeout(f"harness 超时（{timeout_s:.1f}s），已终止子进程") from exc
+            except HarnessError:
+                raise
+            except Exception as exc:
+                # 管道、编码等意外失败也收成 HarnessError：/v1/run 不该把裸异常
+                # 变成 500，而这个服务的既有语义就是"失败给 5xx 且带原因"。
+                raise HarnessError(f"harness 执行异常：{type(exc).__name__}: {exc}") from exc
+            finally:
+                # 回收放在 finally：此前只有 TimeoutError/OSError 两条路会终止子进程，
+                # 外层取消或任何其他异常都会留下还在跑的 agent 进程，而并发额度已归还。
+                await self._terminate(proc)
+
+            exit_code = proc.returncode if proc.returncode is not None else -1
             if exit_code != 0:
                 raise HarnessError(
-                    f"harness 退出码 {exit_code}：{_tail_text(stderr, STDERR_TAIL_BYTES) or '子进程无 stderr 输出'}"
+                    f"harness 退出码 {exit_code}：{_redact(_tail_text(stderr, STDERR_TAIL_BYTES)) or '子进程无 stderr 输出'}"
                 )
 
-            text, source, data_bytes = self._final_answer(output_file, stdout, truncated)
+            text, source, data_bytes, cut = self._final_answer(output_file, stdout, truncated)
             if not text.strip():
                 raise HarnessError("harness 未产出可用文本（stdout 与输出文件均为空）")
             return HarnessRun(
@@ -152,21 +179,27 @@ class CommandHarness(BaseHarness):
                 ms=int((time.perf_counter() - started) * 1000),
                 kind="subprocess",
                 source=source,
-                truncated=truncated,
-                stderr_tail=_tail_text(stderr, STDERR_TAIL_BYTES),
+                truncated=cut,
+                stderr_tail=_redact(_tail_text(stderr, STDERR_TAIL_BYTES)),
                 bytes=data_bytes,
                 target=argv[1] if len(argv) > 1 else argv[0],
             )
 
-    async def _exchange(self, proc: asyncio.subprocess.Process, task: str) -> tuple[bytes, bytes, bool]:
-        """并发喂 stdin 与排空两条管道，任一超限即标记截断但继续读干，避免死锁。"""
-        feed = asyncio.create_task(self._feed(proc.stdin, task))
-        (stdout, out_truncated), (stderr, _) = await asyncio.gather(
-            self._drain(proc.stdout, self.max_output_bytes),
-            self._drain(proc.stderr, STDERR_TAIL_BYTES),
-        )
-        await feed
-        await proc.wait()
+    async def _exchange(
+        self, proc: asyncio.subprocess.Process, task: str, timeout_s: float
+    ) -> tuple[bytes, bytes, bool]:
+        """并发喂 stdin 与排空两条管道，任一超限即标记截断但继续读干，避免死锁。
+
+        用 `gather` 而不是手工 `create_task`：超时/取消时 gather 会把取消广播给每个
+        子任务，孤儿的 feed 任务从结构上不可能出现（旧写法要等进程退出才轮到它）。
+        """
+        async with asyncio.timeout(max(0.1, timeout_s)):
+            _, (stdout, out_truncated), (stderr, _) = await asyncio.gather(
+                self._feed(proc.stdin, task),
+                self._drain(proc.stdout, self.max_output_bytes),
+                self._drain(proc.stderr, STDERR_TAIL_BYTES),
+            )
+            await proc.wait()
         return stdout, stderr, out_truncated
 
     @staticmethod
@@ -182,32 +215,41 @@ class CommandHarness(BaseHarness):
 
     @staticmethod
     async def _drain(stream: asyncio.StreamReader | None, limit: int) -> tuple[bytes, bool]:
+        """排空一条管道，只保留**尾部** limit 字节。
+
+        保头是错的：被截断的通常是 harness 的最终回答，它在末尾——留头部等于拿一段
+        没有结论的文本去评分，还把"已经截断"这个已知损坏信号变成一次 200 响应。
+        """
         if stream is None:
             return b"", False
-        chunks: list[bytes] = []
-        total = 0
+        buffer = bytearray()
         truncated = False
         while True:
             chunk = await stream.read(READ_CHUNK)
             if not chunk:
                 break
-            keep = chunk[: max(0, limit - total)]
-            if keep:
-                chunks.append(keep)
-                total += len(keep)
-            if len(keep) < len(chunk):
+            buffer += chunk
+            if len(buffer) > limit:
                 truncated = True
-        return b"".join(chunks), truncated
+                del buffer[: len(buffer) - limit]
+        return bytes(buffer), truncated
 
-    def _final_answer(self, output_file: Path, stdout: bytes, truncated: bool) -> tuple[str, str, int]:
-        """优先取 ``-o`` 落地的最终回答文件，其次退回 stdout。"""
+    def _final_answer(self, output_file: Path, stdout: bytes, truncated: bool) -> tuple[str, str, int, bool]:
+        """优先取 ``-o`` 落地的最终回答文件，其次退回 stdout。
+
+        返回的末位是"是否截断"：输出文件走的是磁盘，stdout 的标志管不到它，
+        不一起判就会把一段被腰斩的回答当成完整回答交付。
+        """
         if self.uses_output_file and output_file.is_file():
             data = output_file.read_bytes()
-            return data.decode("utf-8", errors="replace")[: self.max_output_bytes], "output_file", len(data)
+            overflow = len(data) > self.max_output_bytes
+            tail = data[-self.max_output_bytes :] if overflow else data
+            return tail.decode("utf-8", errors="replace"), "output_file", len(data), truncated or overflow
         return (
             stdout.decode("utf-8", errors="replace"),
             "stdout",
             len(stdout) if not truncated else self.max_output_bytes,
+            truncated,
         )
 
     async def _terminate(self, proc: asyncio.subprocess.Process | None) -> None:
@@ -230,3 +272,16 @@ class CommandHarness(BaseHarness):
 
 def _tail_text(data: bytes, limit: int) -> str:
     return data[-limit:].decode("utf-8", errors="replace")
+
+
+#: stderr 会原样进入 502/504 的 detail 与审计，而这个服务无鉴权、只绑本机也不代表
+#: 日志里的凭据就该长期存在。只按形状抹值，不改"detail 里能看到子进程报错"这一既有语义。
+_SECRET_VALUE = re.compile(r"(?i)\b(sk-[A-Za-z0-9_-]{4,}|ghp_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{6,})\b")
+_SECRET_ASSIGN = re.compile(r"(?i)\b(api[_-]?key|token|secret|authorization|password)(\s*[:=]\s*)(\S+)")
+
+
+def _redact(text: str) -> str:
+    if not text:
+        return text
+    masked = _SECRET_VALUE.sub(lambda match: f"{match.group(1)[:4]}***", text)
+    return _SECRET_ASSIGN.sub(lambda match: f"{match.group(1)}{match.group(2)}***", masked)

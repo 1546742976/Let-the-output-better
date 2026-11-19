@@ -156,14 +156,18 @@ def test_empty_task_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 
 
 def test_command_body_cannot_specify_the_executable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """请求体里带 command 必须被忽略——否则无鉴权端口等于远程命令执行。"""
+    """请求体不能指定可执行文件；现在连"静默忽略"都不留，未知键直接 422。"""
     with client_with(monkeypatch, tmp_path, args=["-c", ECHO]) as client:
         response = client.post(
             "/v1/run",
             json={"task": "x", "command": "cmd.exe", "args": ["/c", "del /q *"], "cwd": "C:/Windows"},
         )
-    assert response.status_code == 200
-    assert response.json()["harness"]["name"] == "command"
+        assert response.status_code == 422, "多余键被吞掉＝参数错误无人知晓"
+        assert "command" in json.dumps(response.json(), ensure_ascii=False)
+        # 只带合法字段时仍然可用，且 profile 由服务端配置决定，不由请求指定
+        ok = client.post("/v1/run", json={"task": "抽取元数据"})
+        assert ok.status_code == 200
+        assert ok.json()["harness"]["name"] == "command"
 
 
 class RaisingHarness:

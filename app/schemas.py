@@ -98,16 +98,55 @@ def coerce_number(value: Any) -> float | None:
     return float(match.group()) if match else None
 
 
+def required_field_names(model: type[BaseModel] | None) -> list[str] | None:
+    """必填字段名；返回 ``None`` 表示"这个维度不可测"，与"测到了但一个都没填"区分开。"""
+    if model is None:
+        return None
+    fields = getattr(model, "model_fields", None)
+    if not isinstance(fields, dict):
+        return None
+    return [name for name, field in fields.items() if field.is_required()]
+
+
+def optional_field_names(model: type[BaseModel] | None) -> list[str] | None:
+    """见 `required_field_names`：`None` 表示不可测。"""
+    if model is None:
+        return None
+    fields = getattr(model, "model_fields", None)
+    if not isinstance(fields, dict):
+        return None
+    return [name for name, field in fields.items() if not field.is_required()]
+
+
+def describe_model(model: type[BaseModel] | None) -> str:
+    """给修复提示词的字段说明：内置模型用自己的写法，其余走 Pydantic 通用面。"""
+    if model is None:
+        return "（未指定 Schema，输出 JSON 对象即可）"
+    hint = getattr(model, "schema_hint", None)
+    if callable(hint):
+        return str(hint())
+    return json.dumps(model.model_json_schema(), ensure_ascii=False, indent=2)
+
+
+def parse_model_text(model: type[BaseModel], text: str) -> dict[str, Any] | None:
+    """非 JSON 输出的确定性解析入口；没有定制解析器的模型一律交不回结构。"""
+    custom = getattr(model, "parse_text", None)
+    if callable(custom):
+        parsed = custom(text)
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
 class AcademicModel(BaseModel):
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     @classmethod
     def required_fields(cls) -> list[str]:
-        return [name for name, field in cls.model_fields.items() if field.is_required()]
+        return required_field_names(cls) or []
 
     @classmethod
     def optional_fields(cls) -> list[str]:
-        return [name for name, field in cls.model_fields.items() if not field.is_required()]
+        return optional_field_names(cls) or []
 
     @classmethod
     def schema_hint(cls) -> str:
@@ -239,7 +278,13 @@ SCHEMA_REGISTRY: dict[str, type[AcademicModel]] = {
 }
 
 
-def resolve_schema(schema: str | type[AcademicModel] | None) -> type[AcademicModel] | None:
+def resolve_schema(schema: str | type[BaseModel] | None) -> type[BaseModel] | None:
+    """解析调用方给的 Schema。
+
+    自定义 Pydantic 模型走通用面即可参与评分与修复；传进来的根本不是 Pydantic 类是
+    调用方的编程错误，在入口炸掉，而不是塞进 fail-open 变成一条"已降级"的审计——
+    fail-open 保护的是业务不被优化器拖垮，不替调用方兜参数类型。
+    """
     if schema is None:
         return None
     if isinstance(schema, str):
@@ -248,4 +293,6 @@ def resolve_schema(schema: str | type[AcademicModel] | None) -> type[AcademicMod
         except KeyError as exc:
             known = ", ".join(SCHEMA_REGISTRY)
             raise KeyError(f"未知 Schema {schema!r}，内置可选：{known}") from exc
+    if not (isinstance(schema, type) and issubclass(schema, BaseModel)):
+        raise TypeError(f"schema 必须是 Pydantic 模型类或内置名称，收到 {schema!r}")
     return schema

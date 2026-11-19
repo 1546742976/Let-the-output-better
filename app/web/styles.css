@@ -2020,6 +2020,11 @@ kbd {
   word-break: break-all;
 }
 
+.env dd.env-warn {
+  color: var(--yellow-ink);
+  text-align: left;
+}
+
 .env dt:last-of-type,
 .env dd:last-of-type {
   border-bottom: 0;

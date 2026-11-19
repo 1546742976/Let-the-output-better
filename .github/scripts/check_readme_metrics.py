@@ -88,24 +88,73 @@ def _annotate(level: str, message: str) -> None:
     print(f"::{level}::{escaped}")
 
 
+#: 延迟类指标不比对：runner 的计时抖动是噪声，比了只会制造假红。
+UNSTABLE_METRICS = frozenset({"额外延迟 P95"})
+
+
+def check_evaluation(readme_path: Path, metrics_path: Path) -> list[str]:
+    """README §9 的实测表必须与同一次 evaluate 跑出的机读汇总一致。
+
+    指标全部由 `scripts/evaluate.py` 计算并落成 JSON，这里只做比对——不在守卫里
+    重算一遍公式，等于制造第二份会各自漂移的实现。
+    """
+    payload: dict[str, Any] = json.loads(metrics_path.read_text(encoding="utf-8"))
+    metrics = payload.get("metrics") or {}
+    if not metrics:
+        return [f"{metrics_path} 里没有 metrics，守卫失去比对对象"]
+    text = readme_path.read_text(encoding="utf-8")
+    problems: list[str] = []
+    rows: dict[str, list[str]] = {}
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [part.strip() for part in line.strip().strip("|").split("|")]
+        # §9 的表是"指标 | 目标 | 实测 | 达标"四列，其余四列表格（如指标定义表）名字对不上自然被跳过
+        if len(cells) == 4 and cells[0] in metrics:
+            rows[cells[0]] = cells
+    for name, expected in metrics.items():
+        if name in UNSTABLE_METRICS:
+            continue
+        if name not in rows:
+            problems.append(f"README §9 缺少指标行：{name}")
+            continue
+        _, claimed_target, claimed_measured, claimed_met = rows[name]
+        if claimed_measured != expected["measured"]:
+            problems.append(f"{name}：README 写 {claimed_measured!r}，本次实跑 {expected['measured']!r}")
+        if claimed_met != ("是" if expected["met"] else "否"):
+            problems.append(
+                f"{name}：README 达标列为 {claimed_met!r}，本次实跑判为 {'是' if expected['met'] else '否'}"
+            )
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--readme", type=Path, default=Path("README.md"))
-    parser.add_argument("--junit", type=Path, required=True, help="pytest --junitxml 产物")
-    parser.add_argument("--coverage", type=Path, required=True, help="pytest --cov-report=json 产物")
+    parser.add_argument("--junit", type=Path, help="pytest --junitxml 产物")
+    parser.add_argument("--coverage", type=Path, help="pytest --cov-report=json 产物")
+    parser.add_argument("--evaluation", type=Path, help="scripts/evaluate.py 的 .metrics.json 汇总")
     args = parser.parse_args()
-    try:
-        problems = check_readme(args.readme, args.junit, args.coverage)
-    except (OSError, UnicodeError, ValueError, ET.ParseError) as exc:
-        print(f"Cannot verify README metrics: {exc}", file=sys.stderr)
-        _annotate("error", f"README 指标守卫无法读取产物：{exc}")
-        return 1
+    if not args.junit and not args.evaluation:
+        print("至少要给 --junit/--coverage 或 --evaluation 中的一组", file=sys.stderr)
+        return 2
+    problems: list[str] = []
+    if args.junit and args.coverage:
+        try:
+            problems += check_readme(args.readme, args.junit, args.coverage)
+        except (OSError, UnicodeError, ValueError, ET.ParseError) as exc:
+            problems.append(f"无法核对用例数/覆盖率：{exc}")
+    if args.evaluation:
+        try:
+            problems += check_evaluation(args.readme, args.evaluation)
+        except (OSError, UnicodeError, ValueError, KeyError) as exc:
+            problems.append(f"无法核对 §9 指标表：{exc}")
     if problems:
         print("README metrics drift detected:", file=sys.stderr)
         for problem in problems:
             print(f"- {problem}", file=sys.stderr)
             _annotate("error", problem)
-        print("→ 用本次实跑值更新 README §13，或在 PR 里说明为何该数字应当保持。", file=sys.stderr)
+        print("→ 用本次实跑值更新 README §13 或 §9，或在 PR 里说明为何该数字应当保持。", file=sys.stderr)
         return 1
     print("README metrics match this run.")
     return 0

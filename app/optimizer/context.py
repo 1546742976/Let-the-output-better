@@ -6,8 +6,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.providers.base import BaseProvider
-from app.schemas import AcademicModel
 from app.settings import PipelineConfig, Settings
 
 
@@ -30,7 +31,7 @@ class StepContext:
     settings: Settings
     config: PipelineConfig
     provider: BaseProvider | None = None
-    schema: type[AcademicModel] | None = None
+    schema: type[BaseModel] | None = None
     instruction: str = ""
     input_text: str = ""
 

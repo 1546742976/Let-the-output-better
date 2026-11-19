@@ -21,6 +21,7 @@ from app.optimizer.steps.base import BaseStep, StepResult
 from app.optimizer.steps.references import is_compliant
 from app.optimizer.steps.schema import is_filled
 from app.plain import report
+from app.schemas import optional_field_names, required_field_names
 from app.settings import PROSE_WEIGHTS, STRUCTURED_WEIGHTS
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
@@ -123,6 +124,9 @@ class RulesStep(BaseStep):
             reason = f"得分 {ctx.score:.2f} 低于阈值 {threshold:.2f}（{', '.join(weak)}）｜{language.summary()}"
         elif preservation is None:
             reason = f"{language.summary()}；未提供原始材料，一致性维度不参与计分"
+        elif dimensions.get("completeness") is None:
+            # 不可测要说清是不可测：留空会让人以为完整度已经评过且满分。
+            reason = f"{language.summary()}；字段完整度对该 Schema 不可测，不参与计分"
         return StepResult(
             name=self.name,
             passed=passed,
@@ -152,13 +156,21 @@ class RulesStep(BaseStep):
         parts = [value for key, value in ctx.parsed.items() if isinstance(value, str) and key not in _NON_NARRATIVE]
         return "。".join(parts)
 
-    def _completeness(self, ctx: StepContext) -> float:
+    def _completeness(self, ctx: StepContext) -> float | None:
+        """字段完整度；`None` 表示这个维度**不可测**，而不是"测到了 0 分"。
+
+        自定义 Pydantic 模型走 `model_fields` 通用面即可参与评分；此前直接调
+        `required_fields()` 是内置模型才有的方法，任何自定义模型都会让本步骤抛错、
+        整次评分变成 `None`。不可测时权重由聚合处剔除，不会稀释总分。
+        """
         if ctx.schema is None:
             return 1.0 if (ctx.text or "").strip() else 0.0
         if ctx.parsed is None:
             return 0.0
-        required = ctx.schema.required_fields()
-        optional = ctx.schema.optional_fields()
+        required = required_field_names(ctx.schema)
+        optional = optional_field_names(ctx.schema)
+        if required is None or optional is None:
+            return None
         required_hits = sum(1 for name in required if is_filled(ctx.parsed.get(name)))
         optional_hits = sum(1 for name in optional if is_filled(ctx.parsed.get(name)))
         required_ratio = required_hits / len(required) if required else 1.0

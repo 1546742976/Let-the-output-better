@@ -27,6 +27,64 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         yield instance
 
 
+class TestShippedPayloads:
+    """仓库里对外发的样例必须能过真实模型校验。
+
+    `data/request.example.json` 此前带着早已改名的 `humanize` 键：在
+    `extra="ignore"` 下它只是静默无效（用户以为某步骤被关了，其实那键不存在），
+    改成 `forbid` 之后同一个样例直接 422。样例文件一旦没人校验就会烂在这里。
+    """
+
+    def test_example_request_body_is_valid(self, client):
+        body = json.loads(
+            (Path(__file__).resolve().parents[1] / "data" / "request.example.json").read_text(encoding="utf-8")
+        )
+        response = client.post("/v1/optimize", json=body)
+        assert response.status_code == 200, response.json()
+        assert response.json()["valid"] is True
+
+    def test_example_payload_keys_are_known_options(self):
+        body = json.loads(
+            (Path(__file__).resolve().parents[1] / "data" / "request.example.json").read_text(encoding="utf-8")
+        )
+        allowed = set(api.Options.model_fields)
+        used = set((body.get("options") or {}).keys())
+        assert used <= allowed, f"样例里有未知开关：{sorted(used - allowed)}（可提交值见 §7.2）"
+
+
+class TestInputLimits:
+    """入口封顶：审计会整段落盘，不设上限等于让一次请求写进几百 MB。"""
+
+    def test_oversized_raw_output_is_rejected(self, client):
+        response = client.post("/v1/optimize", json={"raw_output": "值得" * (api.MAX_OUTPUT_CHARS // 2 + 1)})
+        assert response.status_code == 422
+        assert "max_len" in json.dumps(response.json(), ensure_ascii=False) or "longer" in json.dumps(
+            response.json(), ensure_ascii=False
+        )
+
+    def test_oversized_input_text_is_rejected(self, client):
+        response = client.post(
+            "/v1/optimize",
+            json={"raw_output": "hi", "input_text": "x" * (api.MAX_INPUT_CHARS + 1)},
+        )
+        assert response.status_code == 422
+
+    def test_boundary_sizes_are_accepted(self, client):
+        """上限本身可用，否则封顶就变成了新的隐性拒绝。
+
+        这里关掉全部步骤：本用例要验的是入口是否放行，不是 200k 字符的评分吞吐
+        ——留着 rules 跑满整段会让整套测试从秒级涨到近两分钟。
+        """
+        response = client.post(
+            "/v1/optimize",
+            json={
+                "raw_output": "x" * api.MAX_OUTPUT_CHARS,
+                "options": {"score": False, "repair": False, "format": False, "simplify": False},
+            },
+        )
+        assert response.status_code == 200
+
+
 class TestHealthz:
     def test_reports_active_provider(self, client):
         assert client.get("/healthz").json() == {"status": "ok", "provider": "mock"}

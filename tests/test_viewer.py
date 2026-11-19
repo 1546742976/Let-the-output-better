@@ -162,11 +162,11 @@ class TestReadAuditTail:
         """窗口被 scan_cap 截断，但整文件在一块内读完并触到文件头：total_lines 仍是全量而非窗口大小。"""
         path = tmp_path / "audit.jsonl"
         write_records(path, [{"request_id": f"req_{index}"} for index in range(50)])
-        monkeypatch.setattr(viewer, "MAX_SCANNED_LINES", 10)  # wanted=2 → scan_cap=max(20,10)=20 < 50
+        monkeypatch.setattr(viewer, "MAX_SCANNED_LINES", 10)  # wanted=2 → scan_cap=min(200,10)=10
         payload = viewer.read_audit_tail(path, limit=2)
         assert payload["total_exact"] is True
-        assert payload["total_lines"] == 50  # 全量，不受窗口=20 影响
-        assert payload["scanned"] == 20  # 窗口只留最后 20 行
+        assert payload["total_lines"] == 50  # 全量，不受窗口截断影响
+        assert payload["scanned"] == 10  # 窗口只留最后 10 行
         assert [item["line_no"] for item in payload["items"]] == [50, 49]
 
     def test_large_file_marks_total_as_window_lower_bound(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -175,11 +175,41 @@ class TestReadAuditTail:
         write_records(path, [{"request_id": f"req_{index}"} for index in range(50)])
         monkeypatch.setattr(viewer, "READ_BLOCK", 40)  # 每块约 1.8 行，凑满窗口时仍距文件头很远
         monkeypatch.setattr(viewer, "MAX_SCANNED_LINES", 10)
-        payload = viewer.read_audit_tail(path, limit=2)  # wanted=2 → scan_cap=max(20,10)=20
+        payload = viewer.read_audit_tail(path, limit=2)  # wanted=2 → scan_cap=min(200,10)=10
         assert payload["total_exact"] is False
         # 未读到文件头，total_lines 只是已扫到的下界，必然小于全文件 50 行
-        assert 20 <= payload["total_lines"] < 50
+        assert 10 <= payload["total_lines"] < 50
         assert len(payload["items"]) == 2
+
+    def test_small_limit_does_not_scan_the_whole_cap(self, tmp_path: Path):
+        """只要 1 条历史时不该去读 2000 行：旧公式 max(wanted*10, MAX_SCANNED_LINES) 正是这么干的。"""
+        path = tmp_path / "audit.jsonl"
+        write_records(path, [{"request_id": f"req_{index}"} for index in range(600)])
+        payload = viewer.read_audit_tail(path, limit=1)
+        assert payload["scanned"] <= 200, f"limit=1 却扫了 {payload['scanned']} 行"
+        assert len(payload["items"]) == 1
+
+    def test_byte_budget_stops_before_the_line_cap(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """每行都带全文的审计里，行数封顶拦不住内存：字节预算必须自己收口。
+
+        前提是文件跨多个读取块——只有一块时循环在读到文件头就结束，预算无从生效。
+        """
+        path = tmp_path / "audit.jsonl"
+        write_records(path, [{"request_id": f"req_{index}", "blob": "x" * 2000} for index in range(80)])
+        monkeypatch.setattr(viewer, "READ_BLOCK", 4096)  # 每块约 2 行，逼出多块循环
+        monkeypatch.setattr(viewer, "MAX_SCANNED_BYTES", 20_000)
+        payload = viewer.read_audit_tail(path, limit=2)
+        assert payload["total_exact"] is False
+        assert payload["scanned"] <= 20_000 // 2000 + 2, f"扫了 {payload['scanned']} 行，预算没起作用"
+
+    def test_audit_path_pointing_at_a_directory_degrades_the_panel(self, tmp_path: Path):
+        """AUDIT_PATH 被配成目录时只该坏掉历史面板，不该 500 整页。"""
+        directory = tmp_path / "audit-dir"
+        directory.mkdir()
+        payload = viewer.read_audit_tail(directory, limit=5)
+        assert payload["items"] == []
+        assert payload["error"], "读不到的原因必须写出来，否则页面只显示空列表让人猜"
+        assert payload["total_exact"] is False
 
     def test_line_longer_than_read_block_is_reassembled(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """超长单行跨多个读取块时，靠 carry 拼接，仍是一条完整记录。"""

@@ -1,4 +1,4 @@
-"""FastAPI 入口：``POST /v1/optimize``、``GET /healthz``、本地查看页与实验面 ``POST /v1/run``。"""
+"""FastAPI 入口：``POST /v1/optimize``、``GET /healthz``、本地查看页与默认任务路径 ``POST /v1/run``。"""
 
 from __future__ import annotations
 
@@ -22,11 +22,22 @@ from app.schemas import SCHEMA_REGISTRY
 from app.settings import get_pipeline_config, get_settings
 from app.viewer import mount as mount_viewer
 
+#: 请求体长度上限。审计会把 raw_output/input_text 整段落盘，入口封顶比落盘截断诚实：
+#: 后者会制造"审计里没有但发生过"的黑洞。上限与 HARNESS_MAX_OUTPUT_BYTES 同量级。
+MAX_OUTPUT_CHARS = 200_000
+MAX_INPUT_CHARS = 500_000
+MAX_INSTRUCTION_CHARS = 8_000
+
 
 class Options(BaseModel):
-    """单次请求的步骤开关，语义与 ``pipeline.yaml`` 的 ``enabled`` 一致。"""
+    """单次请求的步骤开关，语义与 ``pipeline.yaml`` 的 ``enabled`` 一致。
 
-    model_config = ConfigDict(extra="ignore")
+    ``extra="forbid"``：本服务唯一的第一方客户端是随包的本地页面。留着 "ignore" 时，
+    开关名写错（页面曾把 `score` 写成 `rules`）就是彻底的静默失效——勾选框看着能点，
+    管线照旧全跑，没有任何地方会报。未知键直接 422 是这里唯一可执行的诊断方式。
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     score: bool | None = None
     repair: bool | None = None
@@ -37,26 +48,26 @@ class Options(BaseModel):
 
 
 class OptimizeRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    raw_output: str = Field(min_length=1)
+    raw_output: str = Field(min_length=1, max_length=MAX_OUTPUT_CHARS)
     schema_name: str | None = Field(default=None, alias="schema")
-    instruction: str = ""
-    input_text: str = ""
+    instruction: str = Field(default="", max_length=MAX_INSTRUCTION_CHARS)
+    input_text: str = Field(default="", max_length=MAX_INPUT_CHARS)
     options: Options = Field(default_factory=Options)
 
 
 class RunRequest(BaseModel):
-    """实验面请求体：只有 ``task`` 会交给 harness，命令本身不可由请求指定。"""
+    """默认任务路径的请求体：只有 ``task`` 会交给 harness，命令本身不可由请求指定。"""
 
-    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    task: str = Field(min_length=1)
+    task: str = Field(min_length=1, max_length=MAX_INSTRUCTION_CHARS)
     schema_name: str | None = Field(default=None, alias="schema")
     #: 只能选内置 profile 名；命令、参数、模型与 base_url 均不可由请求体指定。
     harness: str | None = None
-    instruction: str = ""
-    input_text: str = ""
+    instruction: str = Field(default="", max_length=MAX_INSTRUCTION_CHARS)
+    input_text: str = Field(default="", max_length=MAX_INPUT_CHARS)
     options: Options = Field(default_factory=Options)
 
 

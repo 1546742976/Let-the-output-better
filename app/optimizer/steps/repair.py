@@ -12,6 +12,7 @@ from app.optimizer.scoring import score_text
 from app.optimizer.steps import register_step
 from app.optimizer.steps.base import BaseStep, StepResult
 from app.providers.base import ProviderError
+from app.schemas import describe_model
 from app.textio import load_prompt, render_prompt
 
 MAX_CALL_S = 6.0
@@ -50,7 +51,7 @@ class RepairStep(BaseStep):
         prompt = render_prompt(
             template,
             instruction=ctx.instruction or "（未提供）",
-            schema_json=ctx.schema.schema_hint() if ctx.schema is not None else "（未指定 Schema，输出 JSON 对象即可）",
+            schema_json=describe_model(ctx.schema),
             errors="；".join(ctx.errors) or "（无）",
             input_text=ctx.input_text or "（未提供）",
             raw_output=ctx.raw_output,

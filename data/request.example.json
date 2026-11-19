@@ -3,5 +3,5 @@
   "schema": "paper",
   "instruction": "抽取论文元数据，参考文献按 GB/T 7714 规范",
   "input_text": "《基于深度学习的图像分类方法研究》，张三、李四，发表于 CVPR 2023。关键词：深度学习；图像分类；卷积神经网络。参考文献：Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023.",
-  "options": { "score": true, "repair": true, "format": true, "humanize": false, "timeout_ms": 8000 }
+  "options": { "score": true, "repair": true, "format": true, "simplify": false, "timeout_ms": 8000 }
 }

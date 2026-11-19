@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -15,23 +14,26 @@ from fastapi import APIRouter, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.harness.detect import as_dict, scan
+from app.harness.detect import as_dict, probe_cache_size, scan
 from app.harness.detect import probe as probe_candidate
 from app.harness.profiles import PROFILES
-from app.schemas import SCHEMA_REGISTRY
-from app.settings import apply_overrides
+from app.schemas import SCHEMA_REGISTRY, optional_field_names, required_field_names
+from app.settings import apply_overrides, collect_config_warnings
 
 WEB_DIR = Path(__file__).parent / "web"
 DEFAULT_AUDIT_ITEMS = 50
 MAX_AUDIT_ITEMS = 200
 # 读取窗口上限：避免审计文件很大时为了统计损坏行而解析整个文件。
 MAX_SCANNED_LINES = 2000
+#: 窗口字节预算。审计每行含 raw_output 与 final_output 全文，单行可达数百 KB：
+#: 只按行数封顶时 2000 行足以把整段请求体堆进内存，页面一次刷新就变成放大点。
+MAX_SCANNED_BYTES = 8 * 1024 * 1024
 # 反向读取的块大小。窗口只物化 scan_cap 行，不再整文件 read_text() 进内存。
 READ_BLOCK = 65536
 
 
-def _read_tail_window(handle: Any, size: int, cap: int) -> tuple[list[bytes], bool, int]:
-    """从文件尾部按块倒序收集至多 ``cap`` 个非空行。
+def _read_tail_window(handle: Any, size: int, cap: int, byte_cap: int) -> tuple[list[bytes], bool, int]:
+    """从文件尾部按块倒序收集至多 ``cap`` 个非空行，累计不超过 ``byte_cap`` 字节。
 
     返回 ``(window, reached_bof, full_count)``：``window`` 按文件顺序（旧→新），至多
     ``cap`` 行；``reached_bof`` 表示是否已读到文件头。每块切分时最左一段可能是被块边界
@@ -42,6 +44,7 @@ def _read_tail_window(handle: Any, size: int, cap: int) -> tuple[list[bytes], bo
     if size == 0:
         return [], True, 0
     out: list[bytes] = []
+    collected = 0
     carry = b""
     pos = size
     reached_bof = False
@@ -57,7 +60,8 @@ def _read_tail_window(handle: Any, size: int, cap: int) -> tuple[list[bytes], bo
         if pos == 0:
             reached_bof = True
             break
-        if len(out) >= cap:
+        collected = sum(len(part) for part in out)
+        if len(out) >= cap or collected >= byte_cap:
             break
     if reached_bof and carry.strip():
         out = [carry] + out
@@ -75,14 +79,29 @@ def read_audit_tail(path: str | Path, limit: int) -> dict[str, Any]:
     """
     audit_path = Path(path)
     wanted = max(1, min(limit, MAX_AUDIT_ITEMS))
-    empty = {"items": [], "path": str(audit_path), "total_lines": 0, "scanned": 0, "skipped": 0, "total_exact": True}
+    empty = {
+        "items": [],
+        "path": str(audit_path),
+        "total_lines": 0,
+        "scanned": 0,
+        "skipped": 0,
+        "total_exact": True,
+        "error": "",
+    }
     if not audit_path.exists():
         return empty
+    # AUDIT_PATH 被配成目录、或当前账号读不动时，只让历史面板坏掉：
+    # 500 会让整页看起来失败，而优化面本来与它无关。
+    if not audit_path.is_file():
+        return {**empty, "total_exact": False, "error": f"AUDIT_PATH 不是文件：{audit_path}"}
 
-    scan_cap = max(wanted * 10, MAX_SCANNED_LINES)
-    size = audit_path.stat().st_size
-    with audit_path.open("rb") as handle:
-        window, reached_bof, full_count = _read_tail_window(handle, size, scan_cap)
+    scan_cap = min(max(wanted * 10, 200), MAX_SCANNED_LINES)
+    try:
+        size = audit_path.stat().st_size
+        with audit_path.open("rb") as handle:
+            window, reached_bof, full_count = _read_tail_window(handle, size, scan_cap, MAX_SCANNED_BYTES)
+    except OSError as exc:
+        return {**empty, "total_exact": False, "error": f"审计文件读取失败：{exc}"}
 
     # line_no 以全量计数为基准，窗口被截断时仍指向文件内真实行号（未读到的部分不改变其序号）
     items: list[dict[str, Any]] = []
@@ -106,6 +125,7 @@ def read_audit_tail(path: str | Path, limit: int) -> dict[str, Any]:
         "scanned": len(window),
         "skipped": skipped,
         "total_exact": reached_bof,
+        "error": "",
     }
 
 
@@ -154,6 +174,8 @@ async def runtime_config(request: Request) -> dict[str, Any]:
     schema_step = pipeline.step("schema")
     return {
         "provider": settings.provider,
+        # 装配期用实际生效的配置算，页面据此解释"为什么下拉里没有我刚写的那个 profile"
+        "warnings": collect_config_warnings(request.app.state.settings),
         "score_threshold": settings.score_threshold,
         "timeout_ms": settings.timeout_ms,
         "max_repair_retries": settings.max_repair_retries,
@@ -165,8 +187,8 @@ async def runtime_config(request: Request) -> dict[str, Any]:
         "steps": {step.name: {"enabled": step.enabled, "strict": step.strict} for step in pipeline.steps},
         "schemas": {
             name: {
-                "required": model_cls.required_fields(),
-                "optional": model_cls.optional_fields(),
+                "required": required_field_names(model_cls) or [],
+                "optional": optional_field_names(model_cls) or [],
             }
             for name, model_cls in SCHEMA_REGISTRY.items()
         },
@@ -196,9 +218,12 @@ async def harness_status(
     probed = bool(probe and settings.harness_enabled)
     if probed:
         timeout_s = settings.harness_probe_timeout_ms / 1000
-        candidates = list(
-            await asyncio.gather(*(probe_candidate(candidate, timeout_s=timeout_s) for candidate in candidates))
-        )
+        # 顺序 await 而不是 gather：探测会执行"从磁盘找到的文件"，
+        # 与驱动面一样要限流；缓存与单飞锁在 detect 内部，这里只保证不同时排队多份。
+        fresh = []
+        for candidate in candidates:
+            fresh.append(await probe_candidate(candidate, timeout_s=timeout_s))
+        candidates = fresh
     available = sorted(_available_profiles(request))
     return {
         "enabled": settings.harness_enabled,
@@ -206,6 +231,8 @@ async def harness_status(
         "available": available,
         "api_ready": bool(settings.openai_api_key),
         "probed": probed,
+        # 让"这次点检测其实没起新进程"这件事可见，否则缓存看起来像结果没刷新
+        "probe_cached": probe_cache_size(),
         "detected": [as_dict(candidate) for candidate in candidates],
         "notes": {profile.name: list(profile.notes) for profile in PROFILES.values()},
     }

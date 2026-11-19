@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from app.plain import (
-    AVG_LEN_TARGET,
     DISCLAIMER,
     GROUP_WEIGHTS,
     HEDGE,
@@ -135,9 +134,25 @@ class TestScoring:
         assert plainness("") == 1.0
         assert concision("") == 1.0
 
-    def test_documented_targets(self):
-        assert AVG_LEN_TARGET == 24.0
-        assert LONG_SENTENCE_CHARS == 40
+    def test_concision_only_penalizes_beyond_the_targets(self):
+        """行为断言，而不是 `AVG_LEN_TARGET == 24.0` 这种把常量抄一遍的断言。
+
+        README 没有承诺过这两个数字，因此它们属于可调参数：调它不该让测试变红，
+        但调坏语义（未超目标也扣分、或阈值不生效）必须让测试变红。
+        """
+        short = "。".join(["我们调好了参数"] * 3)
+        mid = "。".join(["我们调好了参数并且把流程跑通了"] * 3)
+        over = "。".join(["我们调好了参数并且把整条检索与重排流程都跑通了两次核对"] * 3)
+        way = "。".join(["我们" + "、".join(["调优"] * 30)] * 2)
+        assert concision(short) == 1.0 and concision(mid) == 1.0, "未超目标不该扣分"
+        assert 0.0 < concision(over) < 1.0, "刚过目标该开始扣分但别扣光"
+        assert concision(over) > concision(way), "句均越长扣分越多，必须单调"
+
+    def test_long_sentence_boundary_is_strictly_above_the_threshold(self):
+        at = "字" * LONG_SENTENCE_CHARS
+        over = "字" * (LONG_SENTENCE_CHARS + 1)
+        assert metrics(at)["long_ratio"] == 0.0, "刚好等于阈值不该算长句"
+        assert metrics(over)["long_ratio"] == 1.0, "超过一个字就必须算长句"
 
     def test_report_summary_is_human_readable(self):
         summary = report(DEFENSIVE).summary()

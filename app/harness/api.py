@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 
-from app.harness.base import BaseHarness, HarnessBusy, HarnessError, HarnessRun, HarnessTimeout
+from app.harness.base import BaseHarness, ConcurrencyBudget, HarnessError, HarnessRun, HarnessTimeout
 from app.providers.base import BaseProvider, ProviderError, ProviderTimeout
 
 DEFAULT_SYSTEM_PROMPT = "你是被测的 agent harness：请按任务要求直接给出最终回答，不要输出执行过程。"
@@ -26,22 +26,29 @@ class ApiHarness(BaseHarness):
         max_concurrency: int = 1,
         system_prompt: str = "",
         label: str | None = None,
+        budget: ConcurrencyBudget | None = None,
     ) -> None:
         self.name = label or self.name
         self.provider = provider
         self.max_output_bytes = max(1024, int(max_output_bytes))
-        self.max_concurrency = max(1, int(max_concurrency))
+        # 不传预算时自建一份：默认与逐实例计数完全一致，共享由装配方决定。
+        self.budget = budget or ConcurrencyBudget(max_concurrency)
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
-        self._in_flight = 0
+
+    @property
+    def max_concurrency(self) -> int:
+        return self.budget.limit
+
+    @property
+    def _in_flight(self) -> int:
+        return self.budget.in_flight
 
     @property
     def target(self) -> str:
         return str(getattr(self.provider, "model", "") or "")
 
     async def run(self, *, task: str, timeout_s: float) -> HarnessRun:
-        if self._in_flight >= self.max_concurrency:
-            raise HarnessBusy(f"harness 并发已达上限（{self.max_concurrency}），请稍后再试")
-        self._in_flight += 1
+        self.budget.acquire()
         started = time.perf_counter()
         try:
             response = await self.provider.chat(
@@ -52,7 +59,7 @@ class ApiHarness(BaseHarness):
         except ProviderError as exc:
             raise HarnessError(f"harness API 调用失败：{exc}") from exc
         finally:
-            self._in_flight -= 1
+            self.budget.release()
 
         raw = response.text or ""
         if not raw.strip():

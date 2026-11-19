@@ -16,6 +16,7 @@ import asyncio
 import contextlib
 import json
 import os
+import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -24,6 +25,10 @@ from app.harness.profiles import PROFILES, HarnessProfile, cli_profiles
 MAX_PACKAGE_JSON_BYTES = 256_000
 MAX_NPM_ROOTS = 8
 PROBE_TEXT_LIMIT = 200
+#: 探测结果缓存时长：本机装了什么是分钟级变化的事实，不该每次点击都重新 exec。
+PROBE_TTL_S = 60.0
+_PROBE_LOCK = asyncio.Lock()
+_PROBE_CACHE: dict[tuple[str, str, str], tuple[float, HarnessCandidate]] = {}
 PROBE_TIMEOUT_S = 5.0
 #: Windows 下这些扩展名不是可直接 exec 的程序；PATH 命中它们只能当指针。
 SCRIPT_SUFFIXES = {".cmd", ".bat", ".ps1", ".sh", ".txt", ".js", ".json"}
@@ -275,7 +280,7 @@ async def _run_probe(argv: list[str], timeout_s: float) -> tuple[int | None, str
     return proc.returncode, first[:PROBE_TEXT_LIMIT]
 
 
-async def probe(candidate: HarnessCandidate, *, timeout_s: float = PROBE_TIMEOUT_S) -> HarnessCandidate:
+async def _probe_uncached(candidate: HarnessCandidate, timeout_s: float) -> HarnessCandidate:
     """补版本与登录态。参数全部来自 profile 常量，失败只降级状态。"""
     profile = PROFILES.get(candidate.profile)
     if profile is None or candidate.executable is None or not candidate.drivable:
@@ -306,6 +311,49 @@ async def probe(candidate: HarnessCandidate, *, timeout_s: float = PROBE_TIMEOUT
             login = f"未登录或状态未知：{text}" if text else "未登录或状态未知"
 
     return replace(candidate, version=version, login=login, status=status, detail=detail)
+
+
+async def probe(
+    candidate: HarnessCandidate,
+    *,
+    timeout_s: float = PROBE_TIMEOUT_S,
+    ttl_s: float = PROBE_TTL_S,
+    refresh: bool = False,
+) -> HarnessCandidate:
+    """带单飞锁与 TTL 的探测入口。
+
+    本机装了什么是会在几分钟里变化的事实，不是每次点击都要重新问一遍的东西：
+    没有这层限流时，页面每次"带探测重新检测"会为每个候选起两次子进程，且并发
+    请求各起各的——与驱动面有 ``HARNESS_MAX_CONCURRENCY``/429 的口径不对称。
+    """
+    key = _probe_key(candidate)
+    now = time.monotonic()
+    if not refresh:
+        hit = _PROBE_CACHE.get(key)
+        if hit is not None and now - hit[0] < ttl_s:
+            return hit[1]
+    async with _PROBE_LOCK:
+        # 锁内复查：排队期间别人可能已经探完了同一候选
+        hit = _PROBE_CACHE.get(key)
+        if hit is not None and not refresh and time.monotonic() - hit[0] < ttl_s:
+            return hit[1]
+        probed = await _probe_uncached(candidate, timeout_s)
+        _PROBE_CACHE[key] = (time.monotonic(), probed)
+        return probed
+
+
+def _probe_key(candidate: HarnessCandidate) -> tuple[str, str, str]:
+    launch = candidate.launch or ("",)
+    return (candidate.profile, str(candidate.entry or ""), str(launch[0]))
+
+
+def probe_cache_size() -> int:
+    """当前缓存的候选数，供页面说明"为什么这次点检测没有新起进程"。"""
+    return len(_PROBE_CACHE)
+
+
+def clear_probe_cache() -> None:
+    _PROBE_CACHE.clear()
 
 
 def as_dict(candidate: HarnessCandidate) -> dict[str, object]:

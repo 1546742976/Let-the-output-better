@@ -57,6 +57,27 @@ class HarnessRun:
         return audit
 
 
+class ConcurrencyBudget:
+    """进程级并发预算。
+
+    要保护的是"本机同时存在的 agent 调用数与账号速率"，那是进程级资源；每个成员
+    各自计数时真实上限变成"成员数 × HARNESS_MAX_CONCURRENCY"，而对外承诺的
+    ``429`` 说的却是"并发超限"这一件事。
+    """
+
+    def __init__(self, limit: int) -> None:
+        self.limit = max(1, int(limit))
+        self.in_flight = 0
+
+    def acquire(self) -> None:
+        if self.in_flight >= self.limit:
+            raise HarnessBusy(f"harness 并发已达上限（{self.limit}），请稍后再试")
+        self.in_flight += 1
+
+    def release(self) -> None:
+        self.in_flight -= 1
+
+
 class BaseHarness(ABC):
     name = "base"
 

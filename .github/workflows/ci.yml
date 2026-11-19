@@ -167,6 +167,8 @@ jobs:
           python scripts/evaluate.py --dataset data/golden.jsonl --provider mock
           --out artifacts/evaluation.md --audit artifacts/evaluation-audit.jsonl
       - run: python .github/scripts/check_evaluation.py artifacts/evaluation.csv
+      # README §9 的实测表与这一次评估同源比对：数字只能来自真实运行，不能靠人抄
+      - run: python .github/scripts/check_readme_metrics.py --evaluation artifacts/evaluation.metrics.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: always()
         with:

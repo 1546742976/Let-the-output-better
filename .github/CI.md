@@ -33,9 +33,11 @@ CodeQL 发现展示在仓库 Security → Code scanning；分析执行成功不�
 CI 固定 `PROVIDER=mock`，不需要模型 API Key，也不传入模型密钥。
 评估脚本输出报告不一定以失败退出，所以额外校验 CSV：样本非空、valid 预期一致、关键字段匹配、事实保持且未降级。
 README 中的分数增益、修复率、延迟等研究目标保留在评估报告，不作为这项回归断言的硬阈值。
-两类数字区别对待：**机械事实**（用例数、综合覆盖率）可由 `.github/scripts/check_readme_metrics.py`
-与同一次运行的产物硬比对，漂移即失败；**研究目标**（分数增益、修复率等）依赖数据集与模型，仍只呈现于评估报告。
-前者只在 Windows job 比对——README §13 记录的是 win32 值，Linux 恒高约 0.15pp，跨平台比对只会产生假告警。
+两类数字区别对待：**机械事实**可由 `.github/scripts/check_readme_metrics.py` 与同一次运行的产物硬比对，漂移即失败；**研究目标**（分数增益、修复率等）依赖数据集与模型配置，仍只呈现于评估报告。
+机械事实分两处比对，各自跑在能给出可复现值的那个作业上：
+
+- README §13 的用例数与综合覆盖率——只在 Windows job 比对（§13 记录的是 win32 值，Linux 恒高约 0.15pp，跨平台比对只会产生假告警）。
+- README §9 的实测指标表——在离线评估作业比对 `evaluation.metrics.json`。数值由 `scripts/evaluate.py` 自己落成机读汇总，守卫只做比对：在守卫里重算一遍公式就是第二份实现，两份会各自漂移。延迟 P95 一行除外，runner 计时抖动是噪声。
 
 ## 本地复现（上传应用代码前可先检查）
 
@@ -50,6 +52,7 @@ python -m pip_audit -r requirements.txt
 python -m yamllint -c .github/yamllint.yml .github
 python scripts/evaluate.py --provider mock --out data/reports/ci.md
 python .github/scripts/check_evaluation.py data/reports/ci.csv
+python .github/scripts/check_readme_metrics.py --evaluation data/reports/ci.metrics.json
 ```
 
 所有 Action 固定到完整 commit SHA，Dependabot 负责更新。CI 工具固定版本。
