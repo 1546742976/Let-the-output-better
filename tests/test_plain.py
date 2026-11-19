@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from app.plain import (
-    AVG_LEN_TARGET,
     DISCLAIMER,
     GROUP_WEIGHTS,
     HEDGE,

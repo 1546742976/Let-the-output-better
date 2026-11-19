@@ -17,7 +17,6 @@ import pytest
 
 from app.optimizer import optimize
 from app.optimizer.steps.simplify import check_boundaries, check_facts
-from app.plain import qualifications
 from app.providers.mock import MockProvider
 from app.settings import PipelineConfig, Settings
 

@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from app.optimizer.steps.simplify import GROWTH_LIMIT, MAX_FIELDS, MIN_LENGTH
-from app.settings import PROSE_WEIGHTS, STRUCTURED_WEIGHTS, Settings
+from app.settings import PROSE_WEIGHTS, Settings
 
 ROOT = Path(__file__).resolve().parents[1]
 README = (ROOT / "README.md").read_text(encoding="utf-8")
