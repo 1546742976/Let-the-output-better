@@ -307,6 +307,8 @@ def metric_table(rows: list[dict[str, Any]], latency_budget_ms: int) -> list[tup
     scores_after = [r["score_after"] for r in rows if r["score_after"] is not None]
     plain_before = [r["plainness_before"] for r in rows if r["plainness_before"] is not None]
     plain_after = [r["plainness_after"] for r in rows if r["plainness_after"] is not None]
+    #: 通俗度只在散文样本上测量：把分母写进实测单元格，否则"39 条"会掩盖"只有 5 条撑着"。
+    prose_rows = [r for r in rows if r["schema"] is None]
     plain_delta = statistics.fmean(plain_after) - statistics.fmean(plain_before) if plain_before else 0.0
     plain_mean_after = statistics.fmean(plain_after) if plain_after else 0.0
     mean_delta = (
@@ -346,7 +348,7 @@ def metric_table(rows: list[dict[str, Any]], latency_budget_ms: int) -> list[tup
         ("平均分变化", f"{mean_delta:+.3f}", "≥ +0.1", mean_delta >= 0.1),
         (
             "通俗度（plainness）",
-            f"{plain_mean_after:.3f}（较优化前 {plain_delta:+.3f}）",
+            f"{plain_mean_after:.3f}（较优化前 {plain_delta:+.3f}；散文样本 {len(prose_rows)} 条）",
             "均值 ≥ 0.8",
             plain_mean_after >= 0.8,
         ),
@@ -470,8 +472,28 @@ def write_report(args: argparse.Namespace, rows: list[dict[str, Any]], style: st
         writer.writeheader()
         writer.writerows(rows)
 
+    #: 机读汇总：守卫只读这份，绝不在守卫里重算指标——重算就是第二份实现，
+    #: 两份会各自漂移（本轮已经在闸门与判定层之间见过一次）。
+    metrics_path = out_path.with_suffix(".metrics.json")
+    metrics_path.write_text(
+        json.dumps(
+            {
+                "rows": len(rows),
+                "prose_rows": sum(1 for row in rows if row["schema"] is None),
+                "metrics": {
+                    name: {"measured": measured, "target": target, "met": ok} for name, measured, target, ok in metrics
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
     print(f"报告：{out_path}")
     print(f"数据：{csv_path}")
+    print(f"汇总：{metrics_path}")
     for name, measured, target, ok in metrics:
         print(f"  {'✓' if ok else '✗'} {name}: {measured}（目标 {target}）")
     return 0

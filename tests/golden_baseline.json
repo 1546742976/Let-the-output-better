@@ -1,9 +1,9 @@
 {
   "g001": {
+    "provider": "none",
     "valid": true,
     "score": 0.942,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "基于深度学习的图像分类方法研究",
       "authors": [
@@ -22,20 +22,20 @@
     }
   },
   "g002": {
+    "provider": "none",
     "valid": true,
     "score": 0.925,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "基于深度学习的图像分类方法研究",
       "year": 2023
     }
   },
   "g003": {
+    "provider": "none",
     "valid": true,
     "score": 0.955,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "Transformer 在视觉任务中的应用",
       "authors": [
@@ -51,10 +51,10 @@
     }
   },
   "g004": {
+    "provider": "none",
     "valid": true,
     "score": 0.705,
-    "repaired": true,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "某综述",
       "authors": [
@@ -65,10 +65,10 @@
     }
   },
   "g005": {
+    "provider": "none",
     "valid": true,
     "score": 0.982,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "Deep residual learning for image recognition",
       "authors": [
@@ -82,10 +82,10 @@
     }
   },
   "g006": {
+    "provider": "none",
     "valid": true,
     "score": 1.0,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "基于深度学习的图像分类方法研究",
       "authors": [
@@ -99,10 +99,10 @@
     }
   },
   "g007": {
+    "provider": "none",
     "valid": true,
     "score": 1.0,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "method": "ResNet-50",
       "metric": "Top-1 Acc",
@@ -113,10 +113,10 @@
     }
   },
   "g008": {
+    "provider": "none",
     "valid": true,
     "score": 0.97,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "method": "BERT-base",
       "metric": "F1",
@@ -126,10 +126,10 @@
     }
   },
   "g009": {
+    "provider": "none",
     "valid": true,
     "score": 0.874,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "图神经网络的综述",
       "authors": [
@@ -145,19 +145,17 @@
     }
   },
   "g010": {
+    "provider": "none",
     "valid": false,
     "score": 0.936,
-    "repaired": true,
-    "markers": [
-      "repair_rejected"
-    ],
+    "degraded": false,
     "final_output": "抱歉，我无法从您提供的内容中找到论文的标题、作者与年份信息，请提供更多材料后重试。"
   },
   "g011": {
+    "provider": "none",
     "valid": true,
     "score": 0.945,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "多模态学习导论",
       "authors": [
@@ -177,19 +175,17 @@
     }
   },
   "g012": {
+    "provider": "none",
     "valid": false,
     "score": 0.964,
-    "repaired": true,
-    "markers": [
-      "repair_rejected"
-    ],
+    "degraded": false,
     "final_output": "{\"dataset\": \"A\", \"value\": \"91.2\"}"
   },
   "g013": {
+    "provider": "none",
     "valid": true,
     "score": 0.985,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "大规模预训练模型的评测方法",
       "authors": [
@@ -208,10 +204,10 @@
     }
   },
   "g014": {
+    "provider": "none",
     "valid": true,
     "score": 0.92,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "Attention-based scene understanding: a survey",
       "authors": [
@@ -225,10 +221,10 @@
     }
   },
   "g015": {
+    "provider": "none",
     "valid": true,
     "score": 0.643,
-    "repaired": true,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "强化学习在调度问题中的应用综述",
       "authors": [
@@ -239,10 +235,10 @@
     }
   },
   "g016": {
+    "provider": "none",
     "valid": true,
     "score": 0.97,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "联邦学习的隐私保护机制",
       "authors": [
@@ -258,10 +254,10 @@
     }
   },
   "g017": {
+    "provider": "none",
     "valid": true,
     "score": 0.955,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "知识图谱补全的嵌入方法研究",
       "authors": [
@@ -272,10 +268,10 @@
     }
   },
   "g018": {
+    "provider": "none",
     "valid": true,
     "score": 0.954,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "Graph neural networks for recommendation: a survey",
       "authors": [
@@ -294,19 +290,17 @@
     }
   },
   "g019": {
+    "provider": "none",
     "valid": false,
     "score": 0.8,
-    "repaired": true,
-    "markers": [
-      "repair_rejected"
-    ],
+    "degraded": false,
     "final_output": "[{\"title\": \"不确定量化的贝叶斯深度网络\", \"authors\": [\"吴磊\"], \"year\": \"2020\", \"venue\": \"NeurIPS 2020\"}]"
   },
   "g020": {
+    "provider": "none",
     "valid": true,
     "score": 0.97,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "低资源机器翻译的元学习方法",
       "authors": [
@@ -323,10 +317,10 @@
     }
   },
   "g026": {
+    "provider": "none",
     "valid": true,
     "score": 0.982,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "机器学习",
       "authors": [
@@ -338,10 +332,10 @@
     }
   },
   "g027": {
+    "provider": "none",
     "valid": true,
     "score": 0.982,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "深度神经网络压缩方法研究",
       "authors": [
@@ -353,10 +347,10 @@
     }
   },
   "g028": {
+    "provider": "none",
     "valid": true,
     "score": 1.0,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "A global report on artificial intelligence in health",
       "authors": [
@@ -369,10 +363,10 @@
     }
   },
   "g029": {
+    "provider": "none",
     "valid": true,
     "score": 0.982,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "Summary of deep learning",
       "authors": [
@@ -386,19 +380,17 @@
     }
   },
   "g030": {
+    "provider": "none",
     "valid": false,
     "score": 1.0,
-    "repaired": true,
-    "markers": [
-      "repair_rejected"
-    ],
+    "degraded": false,
     "final_output": "Vaswani A, Shazeer N."
   },
   "g031": {
+    "provider": "none",
     "valid": true,
     "score": 0.97,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "method": "EfficientNet-B0",
       "metric": "Top-5 Acc",
@@ -408,10 +400,10 @@
     }
   },
   "g032": {
+    "provider": "none",
     "valid": true,
     "score": 0.97,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "method": "Ours",
       "metric": "mAP",
@@ -421,10 +413,10 @@
     }
   },
   "g033": {
+    "provider": "none",
     "valid": true,
     "score": 1.0,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "method": "BERT-large",
       "metric": "Average",
@@ -435,19 +427,17 @@
     }
   },
   "g034": {
+    "provider": "none",
     "valid": false,
     "score": 0.8,
-    "repaired": true,
-    "markers": [
-      "repair_rejected"
-    ],
+    "degraded": false,
     "final_output": "{\"dataset\": \"B\", \"metric\": \"Recall\", \"value\": \"not reported\"}"
   },
   "g035": {
+    "provider": "none",
     "valid": true,
     "score": 0.92,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "图卷积网络的谱方法",
       "authors": [
@@ -461,10 +451,10 @@
     }
   },
   "g036": {
+    "provider": "none",
     "valid": true,
     "score": 0.955,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "面向边缘部署的模型剪枝",
       "authors": [
@@ -477,10 +467,10 @@
     }
   },
   "g037": {
+    "provider": "none",
     "valid": true,
     "score": 0.982,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "Mastering the game of Go with deep neural networks and tree search",
       "authors": [
@@ -494,10 +484,10 @@
     }
   },
   "g038": {
+    "provider": "none",
     "valid": true,
     "score": 0.917,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "method": "YOLOv8-n",
       "metric": "mAP@0.5",
@@ -508,10 +498,10 @@
     }
   },
   "g039": {
+    "provider": "none",
     "valid": true,
     "score": 0.797,
-    "repaired": true,
-    "markers": [],
+    "degraded": false,
     "final_output": {
       "title": "时空图网络的交通预测",
       "authors": [
@@ -530,38 +520,38 @@
     }
   },
   "g040": {
+    "provider": "none",
     "valid": true,
-    "score": 0.808,
-    "repaired": false,
-    "markers": [],
-    "final_output": "实验表明，本文方法在 3 个公开数据集上取得了 12.5% 的 Top-1 准确率提升，性能优于对比方法。"
+    "score": 0.45,
+    "degraded": false,
+    "final_output": "值得注意的是，实验结果充分表明，本文方法在 3 个公开数据集上取得了 12.5% 的 Top-1 准确率提升，具有显著的性能优势和广阔的应用前景。"
   },
   "g041": {
+    "provider": "none",
     "valid": true,
-    "score": 0.612,
-    "repaired": false,
-    "markers": [],
-    "final_output": "该方法或许可以在某些情况下被用于相关任务；受制于算力，其有效性有待进一步验证。"
+    "score": 0.35,
+    "degraded": false,
+    "final_output": "综上所述，在某种程度上，该方法或许可以在某些情况下被用于相关任务；受制于算力，其有效性有待进一步验证。以上内容仅供参考，如需更多资料请随时告诉我。"
   },
   "g042": {
+    "provider": "none",
     "valid": true,
     "score": 0.968,
-    "repaired": false,
-    "markers": [],
+    "degraded": false,
     "final_output": "我们在 2 个数据集上做了 5 组消融实验，结果是正例召回率上升。"
   },
   "g043": {
+    "provider": "none",
     "valid": true,
-    "score": 1.0,
-    "repaired": false,
-    "markers": [],
-    "final_output": "本结论仅在 3 个数据集上得到验证。"
+    "score": 0.405,
+    "degraded": false,
+    "final_output": "值得注意的是，这或许只能被视为探索性证据；本结论仅在 3 个数据集上得到验证；需谨慎解读。"
   },
   "g044": {
+    "provider": "none",
     "valid": true,
-    "score": 1.0,
-    "repaired": false,
-    "markers": [],
-    "final_output": "该方法仅在 24 名被试上得到验证。"
+    "score": 0.5,
+    "degraded": false,
+    "final_output": "该方法仅在 24 名被试上得到验证。初步结果需谨慎解读，以上内容仅供参考，如需更多资料请随时告诉我。"
   }
 }
