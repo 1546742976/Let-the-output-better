@@ -28,6 +28,17 @@ from app.settings import (
     get_settings,
 )
 
+#: 单次请求开关 → 管线步骤名。`main.Options` 的字段名、页面开关与这里的键必须一致，
+#: 由 tests/test_field_name_contract.py 钉住；此前这份对应关系在 main 与 pipeline
+#: 各写一遍，页面把 `score` 写成 `rules` 都没人发现。
+OPTION_TO_STEP: dict[str, str] = {
+    "score": "rules",
+    "repair": "repair",
+    "format": "format",
+    "simplify": "simplify",
+    "strict": "schema",
+}
+
 _request_counter = count(1)
 #: 进程级随机前缀：同一天多进程（并行评估、多个 uvicorn worker）不再撞号。
 _request_nonce = uuid.uuid4().hex[:6]
@@ -172,11 +183,11 @@ async def optimize(
     pipeline = pipeline.model_copy(deep=True)
 
     # 单次请求的开关直接映射到步骤启用状态，保持对外只有 optimize() 一个入口。
-    for name, flag in (("repair", repair), ("simplify", simplify), ("format", fmt), ("rules", score)):
+    for name, flag in (("score", score), ("repair", repair), ("format", fmt), ("simplify", simplify)):
         if flag is not None:
-            pipeline = pipeline.with_step(name, enabled=bool(flag))
+            pipeline = pipeline.with_step(OPTION_TO_STEP[name], enabled=bool(flag))
     if strict is not None:
-        pipeline = pipeline.with_step("schema", strict=bool(strict))
+        pipeline = pipeline.with_step(OPTION_TO_STEP["strict"], strict=bool(strict))
 
     effective = apply_overrides(base_settings, pipeline)
     if timeout_ms is not None:

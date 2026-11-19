@@ -18,6 +18,32 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.harness.base import HarnessUnavailable
 from app.harness.command import resolve_allowed_command
 
+
+def collect_config_warnings(settings: Settings) -> list[str]:
+    """把"配了但静默无效"的配置组合变成可读告警。
+
+    这些都是不报错的错：写进 ``.env`` 就以为自己生效了，实际整项被忽略。做成告警而不是
+    启动失败——`HARNESS_PROVIDERS` 拼错只该关掉 `/v1/run`，不该让粘贴路径起不来。
+    """
+    from app.harness.profiles import PROFILES  # 局部导入：避免模块级触发 harness 包的装配链
+
+    warnings: list[str] = []
+    if not settings.harness_enabled:
+        return warnings
+    known = {profile.name for profile in PROFILES.values()} | {"command"}
+    allowed = {name.strip() for name in settings.harness_providers.split(",") if name.strip()}
+    unknown = sorted(allowed - known)
+    if unknown:
+        warnings.append(f"HARNESS_PROVIDERS 含未知 profile：{'、'.join(unknown)}；可选：{'、'.join(sorted(known))}")
+    if settings.harness_profile and settings.harness_profile not in known:
+        warnings.append(f"HARNESS_PROFILE={settings.harness_profile!r} 不是内置 profile，将退回第一个可用成员")
+    if not settings.harness_command and (settings.harness_args or settings.harness_allowed_commands):
+        warnings.append("HARNESS_COMMAND 为空，HARNESS_ARGS 与 HARNESS_ALLOWED_COMMANDS 整体不生效")
+    if any(token in name.upper() for name in settings.harness_env_list for token in ("KEY", "SECRET", "TOKEN")):
+        warnings.append("HARNESS_ENV_ALLOW 含疑似凭据项，密钥不应进入子进程环境")
+    return warnings
+
+
 DEFAULT_PIPELINE_PATH = Path("config") / "pipeline.yaml"
 SUPPORTED_PROVIDERS = ("mock", "openai")
 #: 散文输出的评分口径：去防御化是主目标，结构完整性不适用。

@@ -382,7 +382,7 @@ curl -s "localhost:8000/v1/harnesses?probe=true"  # 额外跑 --version / login 
 
 | 约束 | 具体做法 |
 | ------ | ------ |
-| 参数来源 | 请求体只接受 `task` 文本与 **profile 名**（等价于用 `schema` 选内置模型）；传 `command`/`args`/`cwd`/`model`/`base_url` 一律无效，有测试固定这一行为 |
+| 参数来源 | 请求体只接受 `task` 文本与 **profile 名**（等价于用 `schema` 选内置模型）；带 `command`/`args`/`cwd`/`model`/`base_url` 的请求直接 422——请求模型是 `extra="forbid"`，未知键不再被静默忽略。有测试固定这一行为 |
 | 配置来源 | 命令、参数、工作目录、环境变量只来自 `.env`；`config/pipeline.yaml` 不接受它们（该文件入库，命令入库等于检出即可执行） |
 | 白名单 | 显式模式下 `HARNESS_COMMAND` 必须是绝对路径、真实存在且在 `HARNESS_ALLOWED_COMMANDS` 中；按 basename 放行等于允许 `python -c`，不做妥协 |
 | 发现器约束 | 只认内置 profile 声明的包名与入口；候选解析后必须仍在该包目录内（拒绝越界软链）；Windows 上必须是带 `MZ` 头的真实 PE——npm 的 `codex.cmd` 与未跑 postinstall 留下的 `opencode.exe` 脚本桩都会被拒 |
@@ -532,6 +532,9 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 - **采纳闸门**：修复结果须同时满足“通过校验”与“得分不降低”；通俗化改写按顺序须满足事实不变（数值、引用锚点）→ 研究边界不丢失 → 没有变得更长，否则丢弃并在审计中标记 `repair_rejected` 或 `simplify_rejected`。
 - **跨版本可复现**：加权评分用 `math.fsum` 精确求和，而不是 `sum()`。`sum()` 自 Python 3.12 起改用补偿求和，同一组权重在 3.11 与 3.12+ 相差 1 ULP，会把得分推到 `round()` 的两可边沿——同一份输入不应因解释器版本而变 0.001。
 - **启动期校验**：Provider 配置缺失或密钥为空时在启动阶段直接失败，避免运行期才暴露问题。
+- **参数不静默失效**：请求模型一律 `extra="forbid"`——开关名写错（页面曾把 `score` 写成 `rules`）过去会被 `extra="ignore"` 吞掉，表现是勾选有效、请求 200、管线照旧，没有任何地方报错。长度同样在入口封顶（`raw_output` 200k、`input_text` 500k、`instruction`/`task` 8k），因为审计会把输入整段落盘；封顶放在入口而不是落盘截断，后者会制造"审计里没有但发生过"的黑洞。
+- **配置告警**：`/v1/config` 的 `warnings` 列出"写了 `.env` 但不生效"的组合（未知 profile 名、`HARNESS_COMMAND` 为空却设了 `HARNESS_ARGS`、`HARNESS_ENV_ALLOW` 含疑似凭据项）。做成告警而非拒绝启动：拼错一个 profile 只该关掉驱动面，不该让粘贴路径起不来。
+- **历史面板独立降级**：`AUDIT_PATH` 指向目录或读不动时，`/v1/audits` 返回 200 + 空列表 + `error` 说明，不把整页打成 500；尾部读取同时受行数与字节预算约束，只要 1 条历史不会去扫 2000 行。
 - **审计降级**：审计写入失败仅记录警告，不影响主流程返回结果。
 
 ## 11. 适用范围与已知限制

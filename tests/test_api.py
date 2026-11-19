@@ -27,6 +27,39 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         yield instance
 
 
+class TestInputLimits:
+    """入口封顶：审计会整段落盘，不设上限等于让一次请求写进几百 MB。"""
+
+    def test_oversized_raw_output_is_rejected(self, client):
+        response = client.post("/v1/optimize", json={"raw_output": "值得" * (api.MAX_OUTPUT_CHARS // 2 + 1)})
+        assert response.status_code == 422
+        assert "max_len" in json.dumps(response.json(), ensure_ascii=False) or "longer" in json.dumps(
+            response.json(), ensure_ascii=False
+        )
+
+    def test_oversized_input_text_is_rejected(self, client):
+        response = client.post(
+            "/v1/optimize",
+            json={"raw_output": "hi", "input_text": "x" * (api.MAX_INPUT_CHARS + 1)},
+        )
+        assert response.status_code == 422
+
+    def test_boundary_sizes_are_accepted(self, client):
+        """上限本身可用，否则封顶就变成了新的隐性拒绝。
+
+        这里关掉全部步骤：本用例要验的是入口是否放行，不是 200k 字符的评分吞吐
+        ——留着 rules 跑满整段会让整套测试从秒级涨到近两分钟。
+        """
+        response = client.post(
+            "/v1/optimize",
+            json={
+                "raw_output": "x" * api.MAX_OUTPUT_CHARS,
+                "options": {"score": False, "repair": False, "format": False, "simplify": False},
+            },
+        )
+        assert response.status_code == 200
+
+
 class TestHealthz:
     def test_reports_active_provider(self, client):
         assert client.get("/healthz").json() == {"status": "ok", "provider": "mock"}
