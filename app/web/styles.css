@@ -1014,11 +1014,6 @@ body {
 }
 
 .pipe-step[data-step="simplify"] {
-  --hue: var(--purple-bright);
-  --tonal: var(--purple-tonal);
-}
-
-.pipe-step[data-step="simplify"] {
   --hue: var(--orange);
   --tonal: var(--yellow-tonal);
 }
@@ -1811,7 +1806,6 @@ kbd {
   --tonal: var(--red-tonal);
 }
 
-.step[data-step="simplify"],
 .dim[data-dim="format"] {
   --hue: var(--purple-bright);
   --tonal: var(--purple-tonal);
@@ -1820,6 +1814,27 @@ kbd {
 .step[data-step="simplify"] {
   --hue: var(--orange);
   --tonal: var(--yellow-tonal);
+}
+
+/* 散文四维各自色相：与结构化三维（绿/紫/红）不混排，同屏内四色可分离。 */
+.dim[data-dim="plainness"] {
+  --hue: var(--orange);
+  --tonal: var(--yellow-tonal);
+}
+
+.dim[data-dim="confidence"] {
+  --hue: var(--blue-bright);
+  --tonal: var(--blue-tonal);
+}
+
+.dim[data-dim="concision"] {
+  --hue: var(--yellow);
+  --tonal: var(--yellow-tonal);
+}
+
+.dim[data-dim="preservation"] {
+  --hue: var(--green-bright);
+  --tonal: var(--green-tonal);
 }
 
 .step-name,
