@@ -45,7 +45,7 @@ def collect_config_warnings(settings: Settings) -> list[str]:
 
 
 DEFAULT_PIPELINE_PATH = Path("config") / "pipeline.yaml"
-SUPPORTED_PROVIDERS = ("mock", "openai")
+SUPPORTED_PROVIDERS = ("mock", "openai", "anthropic", "gemini", "openrouter")
 #: 散文输出的评分口径：去防御化是主目标，结构完整性不适用。
 PROSE_WEIGHTS = {"plainness": 0.35, "confidence": 0.3, "concision": 0.2, "preservation": 0.15}
 #: 结构化输出的评分口径：保留原有三维，另加一维通俗度。
@@ -60,6 +60,15 @@ class Settings(BaseSettings):
     openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    anthropic_base_url: str = Field(default="https://api.anthropic.com/v1", alias="ANTHROPIC_BASE_URL")
+    anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
+    anthropic_model: str = Field(default="claude-sonnet-4-5", alias="ANTHROPIC_MODEL")
+    gemini_base_url: str = Field(default="https://generativelanguage.googleapis.com/v1beta", alias="GEMINI_BASE_URL")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    openrouter_base_url: str = Field(default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL")
+    openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
+    openrouter_model: str = Field(default="openai/gpt-4o-mini", alias="OPENROUTER_MODEL")
     score_threshold: float = Field(default=0.8, alias="OPTIMIZE_SCORE_THRESHOLD")
     max_repair_retries: int = Field(default=1, alias="OPTIMIZE_MAX_REPAIR_RETRIES")
     timeout_ms: int = Field(default=8000, alias="OPTIMIZE_TIMEOUT_MS")
@@ -118,8 +127,14 @@ class Settings(BaseSettings):
     def _check_provider(self) -> Settings:
         if self.provider not in SUPPORTED_PROVIDERS:
             raise ValueError(f"PROVIDER 仅支持 {SUPPORTED_PROVIDERS}，当前为 {self.provider!r}")
-        if self.provider == "openai" and not self.openai_api_key:
-            raise ValueError("PROVIDER=openai 必须设置 OPENAI_API_KEY")
+        keys = {
+            "openai": ("OPENAI_API_KEY", self.openai_api_key),
+            "anthropic": ("ANTHROPIC_API_KEY", self.anthropic_api_key),
+            "gemini": ("GEMINI_API_KEY", self.gemini_api_key),
+            "openrouter": ("OPENROUTER_API_KEY", self.openrouter_api_key),
+        }
+        if self.provider in keys and not keys[self.provider][1]:
+            raise ValueError(f"PROVIDER={self.provider} 必须设置 {keys[self.provider][0]}")
         return self
 
     @model_validator(mode="after")
