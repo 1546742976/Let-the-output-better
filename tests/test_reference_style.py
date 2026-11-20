@@ -60,12 +60,12 @@ class TestPerRequestOverride:
 
 
 @contextmanager
-def _client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+def _client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, audit: bool = False) -> Iterator[TestClient]:
     settings = Settings(
         _env_file=None, provider="mock", audit_path=str(tmp_path / "audit.jsonl"), harness_enabled=False
     )
     monkeypatch.setattr(api, "get_settings", lambda: settings)
-    monkeypatch.setattr(api, "get_pipeline_config", lambda: PipelineConfig(audit=False))
+    monkeypatch.setattr(api, "get_pipeline_config", lambda: PipelineConfig(audit=audit))
     with TestClient(api.app) as client:
         yield client
 
@@ -100,3 +100,11 @@ class TestHttpSurface:
             response = client.post("/v1/optimize", json={"raw_output": RAW, "schema": "paper"})
         assert response.status_code == 200
         assert response.json()["final_output"]["references"][0].endswith("[C]//CVPR. 2023.")
+
+    def test_audit_records_the_effective_style(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """审计要能回答"这条输出按哪种格式排的"，翻记录的人不必再猜配置。"""
+        with _client(tmp_path, monkeypatch, audit=True) as client:
+            client.post("/v1/optimize", json={"raw_output": RAW, "schema": "paper", "reference_style": "apa"})
+            client.post("/v1/optimize", json={"raw_output": RAW, "schema": "paper"})
+        lines = (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()
+        assert [json.loads(line)["reference_style"] for line in lines] == ["apa", "gb-t-7714"]

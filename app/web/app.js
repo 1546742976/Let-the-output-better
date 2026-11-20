@@ -1120,6 +1120,9 @@ async function submitHarness() {
     input_text: $("field-input-text").value,
     options: collectOptions(),
   };
+  // 与 collectPayload 同口径：留空表示"跟随服务端配置"，因此不发这个键。
+  const style = $("field-reference-style").value;
+  if (style) payload.reference_style = style;
   try {
     const response = await postJSON("/v1/run", payload);
     await loadHistory();

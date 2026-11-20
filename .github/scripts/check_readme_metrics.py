@@ -4,6 +4,10 @@
 每次都要人肉拉 CI 日志才发现。这个守卫把 README 的宣称值与**同一次运行**产出的
 ``junit.xml`` / ``coverage.json`` 直接比对，漂移即失败。
 
+用例数比的是下界而非精确值：并行 PR 只要往 main 合进一个新测试，精确值就必然落后，
+于是每个 PR 都得改一次 README、不改就红——那是文档的形状在决定 CI 的颜色，不是质量。
+下界把方向反过来：加用例永远安全，只有"文档说有 550 条结果只跑出 549 条"才失败。
+
 只在 windows runner 上跑：README §13 的数字标注的是 win32，换平台会差 0.1~0.2pp
 （实测 linux 恒高约 0.15pp），在 ubuntu 上比对只会产生假告警。
 """
@@ -19,14 +23,20 @@ from pathlib import Path
 from typing import Any
 
 # README §13 的固定句式，两处宣称值各缺一处都视为口径被改写、需要人工确认。
-TEST_CLAIM = re.compile(r"(\d+)\s*项用例通过")
+# 用例数写成**下界**（`≥N 项用例通过`）：绝对数等于把"本 PR 之外还有人往 main 合了
+# 一个测试"变成红灯，而那种变化没有任何需要修的东西。下界只在用例被删到声明值以下
+# 时失效——那才是文档在说谎。
+TEST_CLAIM = re.compile(r"≥(\d+)\s*项用例通过")
 COVERAGE_CLAIM = re.compile(r"综合覆盖率\s*([\d.]+)%")
 # 同平台同解释器下 coverage.py 的结果也只能近似复现：依赖补丁版本、临时目录路径
 # 这类因素就能让分支计数差出 0.05pp 量级（实测本机 win32 3.13 报 94.15%，CI
 # windows-latest 3.13 判为漂移）。所以容差取 0.5pp：仍然拦得住"文档停留在上一个
 # 时代"这类真实漂移（历史上 91.06/89.61/89.91 与当前值相差 4pp 以上），又不把
-# 最后一位小数变成 CI 的随机失败源。用例数保持逐位精确比对。
+# 最后一位小数变成 CI 的随机失败源。
 COVERAGE_TOLERANCE = 0.5
+# 下界落后实跑这么多即视为文档过时。抬下界是维护动作，不是缺陷，所以只出告警：
+# 让新增用例红 CI 正是本次要消掉的东西。
+FLOOR_STALE_GAP = 60
 
 
 def passed_count(junit_path: Path) -> tuple[int, int]:
@@ -50,18 +60,26 @@ def covered_percent(coverage_path: Path) -> float:
     return float(totals["percent_covered"])
 
 
-def check_readme(readme_path: Path, junit_path: Path, coverage_path: Path) -> list[str]:
+def check_readme(readme_path: Path, junit_path: Path, coverage_path: Path) -> tuple[list[str], list[str]]:
+    """返回 ``(问题, 告警)``：问题让 CI 失败，告警只标注。"""
     text = readme_path.read_text(encoding="utf-8")
     tests, skipped = passed_count(junit_path)
     actual_coverage = covered_percent(coverage_path)
     problems: list[str] = []
+    warnings: list[str] = []
 
     claimed_tests = TEST_CLAIM.findall(text)
     if not claimed_tests:
-        problems.append(f"{readme_path} 里找不到「N 项用例通过」的说法，守卫失去比对对象")
+        problems.append(f"{readme_path} 里找不到「≥N 项用例通过」的下界写法，守卫失去比对对象")
     for raw in claimed_tests:
-        if int(raw) != tests:
-            problems.append(f"用例数不符：README 写 {raw}，本次实跑 {tests}")
+        floor = int(raw)
+        if tests < floor:
+            problems.append(f"用例数低于 README 声明的下界：README 写 ≥{floor}，本次实跑 {tests}")
+        elif tests - floor >= FLOOR_STALE_GAP:
+            warnings.append(
+                f"README §13 的用例下界已过时：声明 ≥{floor}，本次实跑 {tests}；"
+                f"结果不受影响，把下界抬到实跑值附近即可（阈值 {FLOOR_STALE_GAP}）。"
+            )
 
     claimed_coverage = COVERAGE_CLAIM.findall(text)
     if not claimed_coverage:
@@ -74,7 +92,7 @@ def check_readme(readme_path: Path, junit_path: Path, coverage_path: Path) -> li
 
     note = f"（另有 {skipped} 项跳过）" if skipped else ""
     print(f"README 指标核对基准：{tests} 项通过{note}，覆盖率 {actual_coverage:.2f}%")
-    return problems
+    return problems, warnings
 
 
 def _annotate(level: str, message: str) -> None:
@@ -139,9 +157,12 @@ def main() -> int:
         print("至少要给 --junit/--coverage 或 --evaluation 中的一组", file=sys.stderr)
         return 2
     problems: list[str] = []
+    warnings: list[str] = []
     if args.junit and args.coverage:
         try:
-            problems += check_readme(args.readme, args.junit, args.coverage)
+            count_problems, count_warnings = check_readme(args.readme, args.junit, args.coverage)
+            problems += count_problems
+            warnings += count_warnings
         except (OSError, UnicodeError, ValueError, ET.ParseError) as exc:
             problems.append(f"无法核对用例数/覆盖率：{exc}")
     if args.evaluation:
@@ -149,12 +170,16 @@ def main() -> int:
             problems += check_evaluation(args.readme, args.evaluation)
         except (OSError, UnicodeError, ValueError, KeyError) as exc:
             problems.append(f"无法核对 §9 指标表：{exc}")
+    # 告警不改变退出码：它说的是"文档可以再新一点"，不是"这次运行有问题"。
+    for warning in warnings:
+        print(f"提示：{warning}")
+        _annotate("warning", warning)
     if problems:
         print("README metrics drift detected:", file=sys.stderr)
         for problem in problems:
             print(f"- {problem}", file=sys.stderr)
             _annotate("error", problem)
-        print("→ 用本次实跑值更新 README §13 或 §9，或在 PR 里说明为何该数字应当保持。", file=sys.stderr)
+        print("→ 用本次实跑值更新 README §13（用例数写下界）或 §9，或在 PR 里说明为何该数字应当保持。", file=sys.stderr)
         return 1
     print("README metrics match this run.")
     return 0
