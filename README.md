@@ -647,7 +647,7 @@ pytest -q
 pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 ```
 
-本节下文引用的**用例数与综合覆盖率由 CI 硬校验**：Windows job 把这两个数字与同一次运行的 `junit.xml`/`coverage.json` 比对，漂移即失败（见 `.github/CI.md`）。加了用例或改了步骤却忘了同步这里，CI 会直接报出实跑值。分数增益、修复率等研究目标不在硬校验范围内——它们取决于数据集与模型，只呈现于评估报告。
+本节下文引用的**用例数与综合覆盖率由 CI 硬校验**：Windows job 把这两个数字与同一次运行的 `junit.xml`/`coverage.json` 比对（见 `.github/CI.md`）。用例数按**下界**比对：加用例不必回来改这里，也不会让 CI 变红——只有实跑数掉到下界以下（说明文档在说谎）才失败，下界过时得太多只出告警。覆盖率仍按 ±0.5pp 逐值比对，因为它没有"只增不减"的性质。分数增益、修复率等研究目标不在硬校验范围内——它们取决于数据集与模型，只呈现于评估报告。
 
 测试覆盖范围：
 
@@ -666,7 +666,7 @@ pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 - harness 装配单测：以桩 `scan` 结果与假成员覆盖 `_detected()` 过滤、`HarnessRegistry` 选择与级联关闭、`build_harness` 多源合并，验证装配逻辑且全程不 exec。
 - 引用方言单测：断言姓名判定否决、类型推断、`render_apa` 各作者数与 `parse_citation` 失败退回等确定性分支。
 
-v0.6 实测：554 项用例通过，`app/` 行与分支综合覆盖率 94.74%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，写错即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
+v0.6 实测：≥550 项用例通过（写成下界，精确值以同一次运行的 `junit.xml` 为准——绝对数会让"别人往 main 合了一个测试"的 PR 也红 windows 作业），`app/` 行与分支综合覆盖率 94.74%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，下界失守或覆盖率漂移即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
 
 ## 14. 版本规划
 
