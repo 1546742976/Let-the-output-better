@@ -454,6 +454,7 @@ body {
 
 .btn:focus-visible,
 .icon-btn:focus-visible,
+.seg:focus-visible,
 .compose:focus-visible,
 .sort-btn:focus-visible,
 .history-item:focus-visible,
@@ -543,7 +544,7 @@ body {
 .rail-right {
   gap: 16px;
   padding: 20px 18px;
-  overflow: auto;
+  overflow: hidden;
   border-left: 1px solid var(--outline-soft);
 }
 
@@ -1231,6 +1232,23 @@ body {
   margin: 0;
 }
 
+/* 对照是主角：环境面板被长 audit_path、告警、历史条数撑高时，
+   会把 flex:1 的对照压成一条看不见的缝，所以给环境封顶自己滚，
+   再给对照兜一个最小可见高度。 */
+#section-env {
+  max-height: 34vh;
+  overflow: auto;
+}
+
+#section-diff {
+  min-height: 240px;
+}
+
+.panel-grow {
+  flex: 1;
+  overflow: hidden;
+}
+
 .panel-head {
   display: flex;
   align-items: center;
@@ -1282,6 +1300,11 @@ body {
 .hi-info {
   background: var(--yellow-tonal);
   color: var(--yellow-ink);
+}
+
+.hi-swap {
+  background: var(--red-tonal);
+  color: var(--red);
 }
 
 .panel-hint {
@@ -2044,6 +2067,158 @@ kbd {
   border-bottom: 0;
 }
 
+/* ---------- 对照 ---------- */
+
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  height: 32px;
+  margin-bottom: 10px;
+  border: 1px solid var(--outline);
+  border-radius: 999px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.seg {
+  position: relative;
+  overflow: hidden;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: 500 12px var(--ui);
+  cursor: pointer;
+  transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+
+.seg + .seg {
+  border-left: 1px solid var(--outline);
+}
+
+.seg:hover {
+  background: var(--state-hover);
+}
+
+.seg.is-on {
+  background: var(--blue-tonal);
+  color: var(--blue-ink);
+}
+
+.seg:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.diff {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--outline-soft);
+  border-radius: 12px;
+  background: var(--surface-2);
+  font: 12px/1.75 var(--mono);
+}
+
+.dl {
+  display: grid;
+  grid-template-columns: 34px 16px minmax(0, 1fr);
+  padding: 0 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dl .no {
+  padding-right: 8px;
+  color: var(--text-3);
+  text-align: right;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.dl .sign {
+  color: var(--text-3);
+  text-align: center;
+  user-select: none;
+}
+
+.dl.add {
+  background: var(--green-tonal);
+}
+
+.dl.add .sign {
+  color: var(--green);
+}
+
+.dl.del {
+  background: var(--red-tonal);
+}
+
+.dl.del .sign {
+  color: var(--red);
+}
+
+.dl.eq:hover {
+  background: var(--sunken);
+}
+
+.dl.split {
+  grid-template-columns: 32px minmax(0, 1fr) 32px minmax(0, 1fr);
+  padding: 0;
+}
+
+.dl.split .cell {
+  padding: 0 9px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dl.split .cell.add {
+  background: var(--green-tonal);
+}
+
+.dl.split .cell.del {
+  background: var(--red-tonal);
+}
+
+.dl.split .cell.empty {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 5px,
+    var(--outline-soft) 5px 6px
+  );
+  opacity: 0.5;
+}
+
+.dl.split-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  padding: 0;
+  border-bottom: 1px solid var(--outline);
+  background: var(--surface);
+  font: 500 10.5px var(--ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.dl.split-head span {
+  padding: 7px 10px;
+}
+
+.dl.split-head span + span {
+  border-left: 1px solid var(--outline-soft);
+}
+
+.diff-note {
+  padding: 12px 14px;
+  font: 12px/1.6 var(--ui);
+  color: var(--text-3);
+}
+
 /* ---------- snackbar ---------- */
 
 .snackbar {
@@ -2279,9 +2454,34 @@ kbd {
     border-left: 0;
   }
 
+  /* 窄屏下右栏进入文档流，对照落到整篇末尾——要滚到底才看得到刚跑完的 diff。
+     这里才真正需要 sticky：宽屏那侧的容器自身不滚动，sticky 是空操作。 */
+  #section-diff {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    max-height: 60vh;
+    background: var(--surface);
+  }
+
+  /* 环境面板在流式布局里不需要宽屏那套封顶，恢复自然高度 */
+  #section-env {
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* 给 sticky 卡片让出可视空间，避免它压住主列最后一块内容 */
+  .workspace {
+    padding-bottom: 40vh;
+  }
+
   .workspace {
     overflow: visible;
     padding: 16px 18px 8px;
+  }
+
+  .panel-grow {
+    min-height: 380px;
   }
 
   .history-list {
