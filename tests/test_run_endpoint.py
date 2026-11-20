@@ -15,6 +15,15 @@ from app.settings import PipelineConfig, Settings
 
 PY = sys.executable
 ECHO = 'import sys; sys.stdin.read(); sys.stdout.write(\'{"title":"来自 harness 的回答","year":"2023"}\')'
+#: 带 references 的回答：引用风格只有落到 references 上才看得见，用它验 run 路径。
+PAPER = json.dumps(
+    {
+        "title": "基于深度学习的图像分类方法研究",
+        "references": ["Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023."],
+    },
+    ensure_ascii=False,
+)
+ECHO_PAPER = f"import sys; sys.stdin.read(); sys.stdout.write({PAPER!r})"
 FAIL = "import sys; sys.stdin.read(); sys.stderr.write('上游失败'); raise SystemExit(4)"
 SLEEP = "import sys,time; sys.stdin.read(); time.sleep(5); print('{}')"
 
@@ -124,6 +133,24 @@ def test_run_records_task_and_harness_into_audit(tmp_path: Path, monkeypatch: py
     assert record["harness"]["name"] == "command"
     # 核心键不可被 audit_extra 覆盖。
     assert record["raw_output"] == '{"title":"来自 harness 的回答","year":"2023"}'
+
+
+def test_run_applies_reference_style_and_records_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """run 路径的引用风格：请求体通过校验 ≠ 参数到了管线。
+
+    页面在 Harness 模式下漏传过 `reference_style`，而后端两层都"看起来支持"——
+    只有把真实回答喂进管线、比对 references，才抓得住这种半通状态。
+    """
+    audit = tmp_path / "audit.jsonl"
+    with client_with(monkeypatch, tmp_path, args=["-c", ECHO_PAPER]) as client:
+        apa = client.post("/v1/run", json={"task": "x", "schema": "paper", "reference_style": "apa"})
+        default = client.post("/v1/run", json={"task": "x", "schema": "paper"})
+    assert apa.status_code == 200 and default.status_code == 200
+    assert "(2023)" in apa.json()["final_output"]["references"][0]
+    assert default.json()["final_output"]["references"][0].endswith("[C]//CVPR. 2023.")
+    records = [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines()]
+    # 审计记的是实际生效值：不带这个键时应当落回配置默认，而不是 null。
+    assert [record["reference_style"] for record in records[-2:]] == ["apa", "gb-t-7714"]
 
 
 def test_harness_failure_never_enters_the_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

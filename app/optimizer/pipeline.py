@@ -270,11 +270,15 @@ async def optimize(
 
     if pipeline.audit:
         log = audit or AuditLog(effective.audit_path)
+        format_step = pipeline.step("format")
         record: dict[str, Any] = {
             "request_id": identifier,
             "ts": datetime.now().astimezone().isoformat(timespec="seconds"),
             "provider": getattr(active_provider, "name", "unknown"),
             "schema": getattr(model_cls, "__name__", None),
+            # 记"实际按哪种风格排的"，不是"请求里写了什么"：请求可以不带这个键，
+            # 而事后翻审计的人要的是能复现那条输出的取值。
+            "reference_style": format_step.reference_style if format_step is not None else None,
             "instruction": instruction,
             "input_text": input_text,
             "valid": result.valid,

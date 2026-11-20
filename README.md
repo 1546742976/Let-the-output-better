@@ -364,7 +364,7 @@ class CcfVenueStep(BaseStep):
 | ------ | ------ | ------ |
 | 历史会话 | schema、状态、得分、耗时、变更标记；搜索、三种排序；点击回填输入区并渲染该次对照 | `GET /v1/audits` |
 | 输入区 | `schema` 下拉与必填提示、`instruction`、`input_text`、`raw_output`、五个步骤开关、`timeout_ms` 与引用风格下拉（跟随配置 / GB/T 7714 / APA，逐请求覆盖）、示例一键填入 | `GET /v1/config` |
-| harness 面板 | profile 下拉、检测结果与「驱动 harness 并优化」；驱动不可用时给出原因，请求体只发 `task` 与 profile 名 | `GET /v1/harnesses`、`POST /v1/run` |
+| harness 面板 | profile 下拉、检测结果与「驱动 harness 并优化」；驱动不可用时给出原因。请求体发 `task`、profile 名与输入区参数（schema / 指令 / 上下文 / 步骤开关 / 引用风格），命令、参数、模型与 base_url 仍不可由请求指定 | `GET /v1/harnesses`、`POST /v1/run` |
 | 运行进度 | 提交后状态行显示当前阶段与已耗时（`harness 运行中` / `管线 <步骤>`），流水线对应节点脉冲；结束或失败即退场 | `GET /v1/progress`（400ms 轮询） |
 | 结果流 | score 环（环上刻度为采纳阈值）、结论行、步骤时间线（条长为得分，无得分时按耗时占比）、评分条（散文四维：通俗度/自信度/简洁度/一致性）、变更与标记、错误、复制输出与重跑；`simplify` 一行留痕下挂三组标签——中性=命中的套话、红=删掉的无据限定、绿=保住的研究边界，另有「主张先行」判定 | `POST /v1/optimize` 与该次的审计记录 |
 | 运行环境 | provider、阈值、超时、fail_open、引用风格、审计条数、健康灯 | `GET /v1/config`、`GET /healthz` |
@@ -569,6 +569,7 @@ python scripts/evaluate.py --dataset data/golden.jsonl --provider mock --out dat
 - **跨版本可复现**：加权评分用 `math.fsum` 精确求和，而不是 `sum()`。`sum()` 自 Python 3.12 起改用补偿求和，同一组权重在 3.11 与 3.12+ 相差 1 ULP，会把得分推到 `round()` 的两可边沿——同一份输入不应因解释器版本而变 0.001。
 - **启动期校验**：Provider 配置缺失或密钥为空时在启动阶段直接失败，避免运行期才暴露问题。
 - **参数不静默失效**：请求模型一律 `extra="forbid"`——开关名写错（页面曾把 `score` 写成 `rules`）过去会被 `extra="ignore"` 吞掉，表现是勾选有效、请求 200、管线照旧，没有任何地方报错。长度同样在入口封顶（`raw_output` 200k、`input_text` 500k、`instruction`/`task` 8k），因为审计会把输入整段落盘；封顶放在入口而不是落盘截断，后者会制造"审计里没有但发生过"的黑洞。
+- **两种模式同参数**：`/v1/optimize` 与 `/v1/run` 收同一组逐请求参数（含 `reference_style`），审计里另记 `reference_style` 为**实际生效值**而不是请求原话——不带这个键时记的是配置默认。这里曾漏过前端：后端两层都"支持"，页面在 Harness 模式却没发这个键，表现是选了 APA 仍按 GB/T 排、请求 200、日志无痕。
 - **配置告警**：`/v1/config` 的 `warnings` 列出"写了 `.env` 但不生效"的组合（未知 profile 名、`HARNESS_COMMAND` 为空却设了 `HARNESS_ARGS`、`HARNESS_ENV_ALLOW` 含疑似凭据项）。做成告警而非拒绝启动：拼错一个 profile 只该关掉驱动面，不该让粘贴路径起不来。
 - **历史面板独立降级**：`AUDIT_PATH` 指向目录或读不动时，`/v1/audits` 返回 200 + 空列表 + `error` 说明，不把整页打成 500；尾部读取同时受行数与字节预算约束，只要 1 条历史不会去扫 2000 行。
 - **审计降级**：审计写入失败仅记录警告，不影响主流程返回结果。
@@ -665,7 +666,7 @@ pytest -q --cov=app --cov-branch --cov-fail-under=80 --cov-report=term-missing
 - harness 装配单测：以桩 `scan` 结果与假成员覆盖 `_detected()` 过滤、`HarnessRegistry` 选择与级联关闭、`build_harness` 多源合并，验证装配逻辑且全程不 exec。
 - 引用方言单测：断言姓名判定否决、类型推断、`render_apa` 各作者数与 `parse_citation` 失败退回等确定性分支。
 
-v0.6 实测：551 项用例通过，`app/` 行与分支综合覆盖率 94.73%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，写错即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
+v0.6 实测：554 项用例通过，`app/` 行与分支综合覆盖率 94.74%（win32，Python 3.11.8 / 3.12.13 / 3.13.13 / 3.14.9 四套隔离环境结果一致；CI 门槛 80%）。**同一份输入在这些版本上得分逐位一致**：加权评分走 `math.fsum` 精确求和，因为 `sum()` 自 3.12 起改用补偿求和，`0.35+0.3+0.2+0.15` 在 3.11 上少 1 ULP，恰好把 0.6125 推到 `round()` 的两可边沿——金标快照曾因此在 3.12+ 上失败、3.11 却通过。用例数不随平台与解释器版本变化，覆盖率只随平台有 0.1pp 量级的浮动（linux 略高）。本节数字由 `.github/scripts/check_readme_metrics.py` 与同一次运行的 `junit.xml`/`coverage.json` 比对，写错即 CI 红；§9 指标表另由同一次 `evaluation.metrics.json` 同源比对，测试里不再各抄一份常量——README 写了的数才允许被断言，见 `tests/test_readme_contract.py`。
 
 ## 14. 版本规划
 
