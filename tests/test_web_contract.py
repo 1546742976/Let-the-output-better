@@ -26,37 +26,6 @@ def nav_ids() -> set[str]:
     return set(re.findall(r'"([^"]+)"', block.group(1)))
 
 
-def rule_body(selector: str, text: str) -> str:
-    """取形如 `selector { ... }` 的规则体（浅层括号匹配，够用且失败会显式报错）。"""
-    start = text.find(f"{selector} {{")
-    assert start >= 0, f"styles.css 缺少规则：{selector}"
-    depth = 0
-    index = text.index("{", start)
-    for offset in range(index, len(text)):
-        if text[offset] == "{":
-            depth += 1
-        elif text[offset] == "}":
-            depth -= 1
-            if depth == 0:
-                return text[index + 1 : offset]
-    raise AssertionError(f"规则未闭合：{selector}")
-
-
-def media_block(max_width: str) -> str:
-    head = "@media (max-width: " + max_width + ") {"
-    start = CSS.find(head)
-    assert start >= 0, f"styles.css 缺少媒体块：{head}"
-    depth = 0
-    for offset in range(start + len(head) - 1, len(CSS)):
-        if CSS[offset] == "{":
-            depth += 1
-        elif CSS[offset] == "}":
-            depth -= 1
-            if depth == 0:
-                return CSS[start + len(head) - 1 : offset + 1]
-    raise AssertionError(f"媒体块未闭合：{head}")
-
-
 def js_function(name: str) -> str:
     """取 `function name(...) { … }` 的函数体（浅层花括号匹配）。
 
