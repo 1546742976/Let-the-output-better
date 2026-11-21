@@ -1,7 +1,7 @@
 """自定义 Pydantic 模型的可用性：README §7.1/§7.3 宣称支持，行为必须配得上这句话。
 
-这批用例只断言外部可见结果（是否报错、分数是否存在、维度取值），不比快照字节；
-把 `required_field_names` 换回内置模型才有的 `required_fields()`，两条立即变红。
+这批用例只断言外部可见结果（是否报错、分数是否存在、维度取值）；
+把 `required_field_names` 换成只对内置模型成立的取法，两条立即变红。
 """
 
 from __future__ import annotations

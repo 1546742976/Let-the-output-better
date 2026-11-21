@@ -26,29 +26,19 @@ jobs:
     name: Repository and workflow checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    outputs:
-      code: ${{ steps.source.outputs.code }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - name: Detect application source
-        id: source
+      - name: Check application source is complete
         shell: bash
         run: |
-          if [[ -z "$(git ls-files -- 'app/*.py')" ]]; then
-            echo 'code=false' >> "$GITHUB_OUTPUT"
-            echo '### Waiting for application source' >> "$GITHUB_STEP_SUMMARY"
-            echo 'Python application checks are skipped until app/ is committed. This is not a passing application test result.' >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo 'code=true' >> "$GITHUB_OUTPUT"
-            for path in requirements.txt app/main.py tests scripts/demo.py scripts/evaluate.py data/golden.jsonl; do
-              if [[ ! -e "$path" ]]; then
-                echo "::error::Application source is incomplete: missing $path"
-                exit 1
-              fi
-            done
-          fi
+          for path in requirements.txt app/main.py tests scripts/demo.py scripts/evaluate.py data/golden.jsonl; do
+            if [[ ! -e "$path" ]]; then
+              echo "::error::Application source is incomplete: missing $path"
+              exit 1
+            fi
+          done
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: '3.13'
@@ -67,7 +57,6 @@ jobs:
   lint:
     name: Python lint and formatting
     needs: repository
-    if: needs.repository.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -86,7 +75,6 @@ jobs:
   types:
     name: Python type checks
     needs: repository
-    if: needs.repository.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -106,7 +94,6 @@ jobs:
   tests:
     name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
     needs: repository
-    if: needs.repository.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -148,7 +135,6 @@ jobs:
   smoke:
     name: Offline demo and golden regression
     needs: repository
-    if: needs.repository.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -179,7 +165,6 @@ jobs:
   bandit:
     name: Python security scan
     needs: repository
-    if: needs.repository.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -259,7 +244,7 @@ jobs:
           persist-credentials: false
       - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
         with:
-          languages: ${{ needs.repository.outputs.code == 'true' && 'actions,python' || 'actions' }}
+          languages: actions,python
           build-mode: none
           queries: security-extended
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
@@ -279,18 +264,13 @@ jobs:
           import json
           import os
           jobs = json.loads(os.environ['JOBS'])
-          code = jobs['repository']['outputs'].get('code') == 'true'
-          application = {'lint', 'types', 'tests', 'smoke', 'bandit'}
           failures = []
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               summary.write('| Check | Result |\n| --- | --- |\n')
               for name, job in jobs.items():
                   result = job['result']
                   summary.write(f'| {name} | {result} |\n')
-                  allowed_skip = not code and name in application and result == 'skipped'
-                  if result != 'success' and not allowed_skip:
+                  if result != 'success':
                       failures.append(name)
-              if not code:
-                  summary.write('\nApplication source is not uploaded; application checks have NOT run.\n')
           if failures:
               raise SystemExit('Failed or unexpectedly skipped checks: ' + ', '.join(failures))

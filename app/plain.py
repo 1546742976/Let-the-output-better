@@ -331,9 +331,6 @@ class PlainReport:
         bits.append(f">40 字句占 {long_ratio:.0%}")
         return "、".join(bits)
 
-    def verdict_labels(self, verdict: str) -> list[str]:
-        return [str(item["text"]) for item in self.qualifications if item["verdict"] == verdict]
-
 
 def sentences(text: str) -> list[str]:
     return [part.strip() for part in _SENT_SPLIT.split(text) if part.strip()]

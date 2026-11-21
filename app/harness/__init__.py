@@ -46,7 +46,6 @@ def __getattr__(name: str) -> type[ApiHarness]:
 
 __all__ = [
     "ApiHarness",
-    "BaseHarness",
     "CommandHarness",
     "HarnessBusy",
     "HarnessError",

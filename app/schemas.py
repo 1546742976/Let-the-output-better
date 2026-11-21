@@ -32,7 +32,6 @@ REF_TYPE_BY_MARKER = {
     "[D]": "thesis",
     "[R]": "report",
 }
-REF_MARKER_BY_TYPE = {value: key for key, value in REF_TYPE_BY_MARKER.items()}
 
 
 def _clean(part: str) -> str:
@@ -139,14 +138,6 @@ def parse_model_text(model: type[BaseModel], text: str) -> dict[str, Any] | None
 
 class AcademicModel(BaseModel):
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
-
-    @classmethod
-    def required_fields(cls) -> list[str]:
-        return required_field_names(cls) or []
-
-    @classmethod
-    def optional_fields(cls) -> list[str]:
-        return optional_field_names(cls) or []
 
     @classmethod
     def schema_hint(cls) -> str:

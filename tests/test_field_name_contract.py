@@ -58,15 +58,17 @@ def test_unknown_option_key_is_rejected_not_swallowed(method: str, path: str):
 
 def test_score_toggle_actually_disables_the_rules_step():
     """勾选"评分"必须真的落到 rules 步骤上——这正是此前失效的那条链路。"""
-    client = TestClient(app)
-    off = client.post(
-        "/v1/optimize",
-        json={"raw_output": "值得注意的是，本文方法具有广阔的应用前景。", "options": {"score": False}},
-    )
-    on = client.post(
-        "/v1/optimize",
-        json={"raw_output": "值得注意的是，本文方法具有广阔的应用前景。", "options": {"score": True}},
-    )
+    # 必须走上下文管理器：lifespan 才装配 app.state.provider，
+    # 裸 TestClient(app) 只在"前面有用例先跑过 lifespan"时侥幸通过。
+    with TestClient(app) as client:
+        off = client.post(
+            "/v1/optimize",
+            json={"raw_output": "值得注意的是，本文方法具有广阔的应用前景。", "options": {"score": False}},
+        )
+        on = client.post(
+            "/v1/optimize",
+            json={"raw_output": "值得注意的是，本文方法具有广阔的应用前景。", "options": {"score": True}},
+        )
     assert off.status_code == 200 and on.status_code == 200
     assert "rules" not in [step["name"] for step in off.json()["steps"]]
     assert "rules" in [step["name"] for step in on.json()["steps"]]
