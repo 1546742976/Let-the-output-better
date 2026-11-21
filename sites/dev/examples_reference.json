@@ -1,0 +1,367 @@
+[
+  {
+    "label": "套话清理",
+    "result": {
+      "changes": [
+        "采纳通俗化重写"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.47,
+        "confidence": 1.0,
+        "plainness": 0.167,
+        "preservation": null
+      },
+      "errors": [],
+      "final_output": "实验表明该方法性能优于对比方法。这或许只能被视为探索性证据，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_example",
+      "score": 0.532,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.28 低于阈值 0.80（plainness=0.00, confidence=0.25）｜防御措辞 10 处、弱化 2 处、句均 31 字、>40 字句占 25%",
+          "score": 0.28
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已通俗化｜防御措辞 10 → 2 处；句均 31 → 36 字；plainness 0.0 → 0.167；concision 0.815 → 0.47；confidence 0.25 → 1.0｜命中：值得注意的是、综上所述、充分表明、性能优势和广阔的应用前景、如需更多、请随时告诉我｜删除无据：值得注意的是，实验结果充分表明该方法、这或许只能被视为探索性证据，需谨慎解、如需更多论文信息请随时告诉我，希望对｜保留边界：综上所述，可能在某种意义上，该结论仅｜主张先行：是",
+          "score": 1.0,
+          "score_after": 0.532
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  {
+    "label": "保住研究边界",
+    "result": {
+      "changes": [
+        "采纳通俗化重写"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 1.0,
+        "confidence": 0.517,
+        "plainness": 0.444,
+        "preservation": 1.0
+      },
+      "errors": [],
+      "final_output": "或许只能被视为初步迹象。该结论仅在 24 名被试的横截面数据上得到验证，且尚未在公开评测集上复现。方法在 A/B 两个基准上表现一致。",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_example",
+      "score": 0.66,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.56 低于阈值 0.80（plainness=0.17, confidence=0.52）｜防御措辞 3 处、句均 23 字、>40 字句占 0%",
+          "score": 0.564
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已通俗化｜防御措辞 3 → 2 处；句均 23 → 21 字；plainness 0.167 → 0.444；concision 1.0 → 1.0；confidence 0.517 → 0.517｜命中：综上所述、初步迹象、或许只能被视为｜删除无据：或许只能被视为初步迹象｜保留边界：该结论仅在 24 名被试的横截面数据、综上所述，方法在 A/B 两个基准上｜主张先行：否",
+          "score": 1.0,
+          "score_after": 0.66
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  {
+    "label": "论文元数据抽取",
+    "result": {
+      "changes": [
+        "schema:drop_extra(note)",
+        "剔除空字段(venue)",
+        "剔除空字段(abstract)",
+        "引用格式(references[0)->gb-t-7714)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.8999999999999999,
+        "format": 0.8888888888888888,
+        "grounding": 1.0,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "authors": [
+          "张三",
+          "李四"
+        ],
+        "keywords": [
+          "深度学习",
+          "图像分类",
+          "卷积神经网络"
+        ],
+        "references": [
+          "Zhang S, Li S. Research on image classification based on deep learning[C]//CVPR. 2023."
+        ],
+        "title": "基于深度学习的图像分类方法研究",
+        "year": 2023
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_example",
+      "score": 0.942,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "reason": "剔除多余字段：note",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 15 字、>40 字句占 0%",
+          "score": 0.942
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(venue)；剔除空字段(abstract)；引用格式(references[0)->gb-t-7714)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  {
+    "label": "引用改 APA",
+    "result": {
+      "changes": [
+        "采纳修复结果（第 1 次，得分 0.77 → 0.77）",
+        "剔除空字段(keywords)",
+        "引用格式(references[0)->apa)",
+        "引用格式(references[1)->apa)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.95,
+        "format": 0.8,
+        "grounding": null,
+        "plainness": 0.444
+      },
+      "errors": [],
+      "final_output": {
+        "abstract": "值得注意的是，本文充分表明残差结构可以直接训练更深的网络。",
+        "authors": [
+          "He, K",
+          "Zhang, X",
+          "Ren, S",
+          "Sun, J"
+        ],
+        "references": [
+          "He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep residual learning for image recognition. CVPR.",
+          "Vaswani, A., & Shazeer, N. (2017). Attention is all you need, 2017. https://doi.org/10.18653/v1/N17-1"
+        ],
+        "title": "Deep residual learning for image recognition",
+        "venue": "CVPR",
+        "year": 2016
+      },
+      "markers": [],
+      "repaired": true,
+      "request_id": "req_example",
+      "score": 0.765,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.77 低于阈值 0.80（plainness=0.44）｜防御措辞 2 处、句均 25 字、>40 字句占 33%",
+          "score": 0.765
+        },
+        {
+          "ms": 1,
+          "name": "repair",
+          "passed": true,
+          "reason": "修复结果通过校验且得分不低于原输出，已采纳",
+          "score": 0.765
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(keywords)；引用格式(references[0)->apa)；引用格式(references[1)->apa)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  {
+    "label": "实验指标",
+    "result": {
+      "changes": [
+        "剔除空字段(unit)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.8999999999999999,
+        "format": 1.0,
+        "grounding": 1.0,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "baseline": 74.0,
+        "dataset": "ImageNet",
+        "method": "ResNet-50",
+        "metric": "Top-1 accuracy",
+        "value": 76.5
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_example",
+      "score": 0.97,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 10 字、>40 字句占 0%",
+          "score": 0.97
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(unit)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  {
+    "label": "英文段落",
+    "result": {
+      "changes": [],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.0,
+        "confidence": 0.333,
+        "plainness": 0.0,
+        "preservation": null
+      },
+      "errors": [],
+      "final_output": "It is worth noting that the results may suggest an association, although this should be interpreted with caution. The method plays a crucial role in downstream tasks and offers significant advantages. This is for informational purposes only.",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_example",
+      "score": 0.118,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.12 低于阈值 0.80（plainness=0.00, confidence=0.33, concision=0.00）｜防御措辞 4 处、弱化 1 处、句均 79 字、>40 字句占 67%",
+          "score": 0.118
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已是通俗表述，无需改写（text）",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  }
+]

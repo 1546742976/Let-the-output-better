@@ -1,0 +1,56 @@
+[
+  {
+    "label": "套话清理",
+    "schema": "",
+    "instruction": "",
+    "input_text": "",
+    "reference_style": "",
+    "raw_output": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景。这或许只能被视为探索性证据，需谨慎解读。综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。如需更多论文信息请随时告诉我，希望对您有帮助！",
+    "note": "防御性写作的极端样张：开场套话、证据降级、免责声明挤在同一段。simplify 会删掉不担信息的部分，把「仅在 3 个数据集上得到验证」「受限于 2023 年的算力条件」这类真边界原样留下。"
+  },
+  {
+    "label": "保住研究边界",
+    "schema": "",
+    "instruction": "保留研究边界，删除免责声明",
+    "input_text": "本研究覆盖 24 名被试，横截面数据，评测集为 A/B 两个公开基准。",
+    "reference_style": "",
+    "raw_output": "或许只能被视为初步迹象。该结论仅在 24 名被试的横截面数据上得到验证，且尚未在公开评测集上复现。综上所述，方法在 A/B 两个基准上表现一致。",
+    "note": "同一个判定器要分清「废话」和「真边界」。给了原始材料后，能在原文里核对上的限定语判为 boundary 予以保留，核不上的才判 ungrounded 删除；不给原始材料时一律保守保留。"
+  },
+  {
+    "label": "论文元数据抽取",
+    "schema": "paper",
+    "instruction": "抽取论文元数据，参考文献按 GB/T 7714 规范",
+    "input_text": "《基于深度学习的图像分类方法研究》，张三、李四，发表于 CVPR 2023。关键词：深度学习；图像分类；卷积神经网络。参考文献：Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023.",
+    "reference_style": "",
+    "raw_output": "{\"title\":\"基于深度学习的图像分类方法研究\",\"authors\":\"张三、李四\",\"year\":\"2023\",\"keywords\":\"深度学习;图像分类;卷积神经网络\",\"reference\":\"Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023.\",\"note\":\"如需更多论文信息请随时告诉我\"}",
+    "note": "结构化输出走 completeness/format/grounding/plainness 四维：多值字符串切成数组、Schema 外的 note 被剔除、引用补成 GB/T 7714 的文献类型标识形态。simplify 默认只改散文（prose_only），结构化字段不动。"
+  },
+  {
+    "label": "引用改 APA",
+    "schema": "paper",
+    "instruction": "参考文献统一成 APA",
+    "input_text": "",
+    "reference_style": "apa",
+    "raw_output": "{\"title\":\"Deep residual learning for image recognition\",\"authors\":[\"He, K.\",\"Zhang, X.\",\"Ren, S.\",\"Sun, J.\"],\"year\":2016,\"venue\":\"CVPR\",\"abstract\":\"值得注意的是，本文充分表明残差结构可以直接训练更深的网络。\",\"references\":[\"He K, Zhang X, Ren S, Sun J. Deep residual learning for image recognition. CVPR 2016: 770-778\",\"Vaswani A, Shazeer N. Attention is all you need, 2017, https://doi.org/10.18653/v1/N17-1\"]} ",
+    "note": "每条引用只在「能可靠解析」时重写：作者姓名换成 APA 的姓, 名缩写形态，年份进括号，DOI 展开成链接；解析不出的原样保留，宁可不改也不猜。"
+  },
+  {
+    "label": "实验指标",
+    "schema": "experiment",
+    "instruction": "把实验结果规整成方法/指标/数值",
+    "input_text": "ResNet-50 在 ImageNet 上的 Top-1 准确率 76.5%，基线 74.0%。",
+    "reference_style": "",
+    "raw_output": "{\"model\":\"ResNet-50\",\"measure\":\"Top-1 accuracy\",\"result\":\"76.5 %\",\"data\":\"ImageNet\",\"base\":\"74.0\"}",
+    "note": "值写成字符串「76.5 %」时，单位被收进 unit 字段再统一写法；键名走别名归一（model→method、result→value）。给了原始材料后 76.5 与 74.0 都要能在原文里定位，否则 grounding 掉分。"
+  },
+  {
+    "label": "英文段落",
+    "schema": "",
+    "instruction": "",
+    "input_text": "",
+    "reference_style": "",
+    "raw_output": "It is worth noting that the results may suggest an association, although this should be interpreted with caution. The method plays a crucial role in downstream tasks and offers significant advantages. This is for informational purposes only.",
+    "note": "英文词表同一条管线：it is worth noting / should be noted 计入 boilerplate，may/might 计入 hedge（有每句配额），plays a crucial role 计入 praise，推责句计入 disclaimer。"
+  }
+]

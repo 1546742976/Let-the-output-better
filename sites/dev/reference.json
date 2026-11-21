@@ -1,0 +1,2000 @@
+{
+  "_plain_probes": {
+    "en_prose": {
+      "acronym_anchors": [],
+      "canonical_numbers": {},
+      "concision": 0.0,
+      "confidence": 0.333,
+      "findings": [
+        [
+          "hedge",
+          "may/might/could",
+          1
+        ],
+        [
+          "boilerplate",
+          "it is worth noting",
+          1
+        ],
+        [
+          "praise",
+          "plays a crucial role",
+          1
+        ],
+        [
+          "praise",
+          "offers significant advantages",
+          1
+        ],
+        [
+          "disclaimer",
+          "informational purposes only",
+          1
+        ]
+      ],
+      "metrics": {
+        "avg_len": 78.7,
+        "chars": 241.0,
+        "hard_density": 1.333,
+        "hard_hits": 4.0,
+        "long_ratio": 0.667,
+        "sentences": 3.0
+      },
+      "ordering": {
+        "claim_first": true,
+        "claim_index": -1,
+        "limit_index": 0
+      },
+      "plainness": 0.0,
+      "qualifications": [
+        {
+          "referents": [],
+          "text": "It is worth noting that the results may suggest ",
+          "verdict": "ungrounded"
+        },
+        {
+          "referents": [],
+          "text": "The method plays a crucial role in downstream ta",
+          "verdict": "ungrounded"
+        }
+      ],
+      "referents_per_sentence": [
+        [],
+        [],
+        []
+      ],
+      "sentences": [
+        "It is worth noting that the results may suggest an association, although this should be interpreted with caution",
+        "The method plays a crucial role in downstream tasks and offers significant advantages",
+        "This is for informational purposes only"
+      ],
+      "source": null,
+      "text": "It is worth noting that the results may suggest an association, although this should be interpreted with caution. The method plays a crucial role in downstream tasks and offers significant advantages. This is for informational purposes only."
+    },
+    "prose_boundary": {
+      "acronym_anchors": [],
+      "canonical_numbers": {
+        "24": 1
+      },
+      "concision": 1.0,
+      "confidence": 0.517,
+      "findings": [
+        [
+          "boilerplate",
+          "综上所述",
+          1
+        ],
+        [
+          "downgrade",
+          "初步迹象",
+          1
+        ],
+        [
+          "downgrade",
+          "或许只能被视为",
+          1
+        ]
+      ],
+      "metrics": {
+        "avg_len": 23.0,
+        "chars": 72.0,
+        "hard_density": 1.0,
+        "hard_hits": 3.0,
+        "long_ratio": 0.0,
+        "sentences": 3.0
+      },
+      "ordering": {
+        "claim_first": false,
+        "claim_index": 1,
+        "limit_index": 0
+      },
+      "plainness": 0.167,
+      "qualifications": [
+        {
+          "referents": [],
+          "text": "或许只能被视为初步迹象",
+          "verdict": "ungrounded"
+        },
+        {
+          "referents": [
+            "24",
+            "评测集",
+            "被试",
+            "横截面"
+          ],
+          "text": "该结论仅在 24 名被试的横截面数据上得到验证，且尚未在公开评测集上复现",
+          "verdict": "boundary"
+        },
+        {
+          "referents": [
+            "基准"
+          ],
+          "text": "综上所述，方法在 A/B 两个基准上表现一致",
+          "verdict": "boundary"
+        }
+      ],
+      "referents_per_sentence": [
+        [],
+        [
+          "24",
+          "评测集",
+          "被试",
+          "横截面"
+        ],
+        [
+          "基准"
+        ]
+      ],
+      "sentences": [
+        "或许只能被视为初步迹象",
+        "该结论仅在 24 名被试的横截面数据上得到验证，且尚未在公开评测集上复现",
+        "综上所述，方法在 A/B 两个基准上表现一致"
+      ],
+      "source": "本研究覆盖 24 名被试，横截面数据，评测集为 A/B 两个公开基准。",
+      "text": "或许只能被视为初步迹象。该结论仅在 24 名被试的横截面数据上得到验证，且尚未在公开评测集上复现。综上所述，方法在 A/B 两个基准上表现一致。"
+    },
+    "prose_clean": {
+      "acronym_anchors": [],
+      "canonical_numbers": {
+        "3": 1,
+        "4.2": 1,
+        "88.5": 1
+      },
+      "concision": 0.98,
+      "confidence": 1.0,
+      "findings": [],
+      "metrics": {
+        "avg_len": 25.0,
+        "chars": 52.0,
+        "hard_density": 0.0,
+        "hard_hits": 0.0,
+        "long_ratio": 0.0,
+        "sentences": 2.0
+      },
+      "ordering": {
+        "claim_first": true,
+        "claim_index": 0,
+        "limit_index": -1
+      },
+      "plainness": 1.0,
+      "qualifications": [
+        {
+          "referents": [
+            "横截面"
+          ],
+          "text": "该结论仅适用于横截面数据",
+          "verdict": "unverified"
+        }
+      ],
+      "referents_per_sentence": [
+        [
+          "3",
+          "88.5",
+          "4.2",
+          "数据集"
+        ],
+        [
+          "横截面"
+        ]
+      ],
+      "sentences": [
+        "方法在 3 个数据集上取得 88.5% 的准确率，比基线高 4.2 个百分点",
+        "该结论仅适用于横截面数据"
+      ],
+      "source": null,
+      "text": "方法在 3 个数据集上取得 88.5% 的准确率，比基线高 4.2 个百分点。该结论仅适用于横截面数据。"
+    },
+    "prose_defense": {
+      "acronym_anchors": [],
+      "canonical_numbers": {
+        "2023": 1,
+        "3": 1
+      },
+      "concision": 0.815,
+      "confidence": 0.25,
+      "findings": [
+        [
+          "boilerplate",
+          "值得注意的是",
+          1
+        ],
+        [
+          "boilerplate",
+          "综上所述",
+          1
+        ],
+        [
+          "praise",
+          "充分表明",
+          1
+        ],
+        [
+          "praise",
+          "性能优势和广阔的应用前景",
+          1
+        ],
+        [
+          "disclaimer",
+          "如需更多",
+          1
+        ],
+        [
+          "disclaimer",
+          "请随时告诉我",
+          1
+        ],
+        [
+          "disclaimer",
+          "希望对您有帮助",
+          1
+        ],
+        [
+          "downgrade",
+          "探索性证据",
+          1
+        ],
+        [
+          "downgrade",
+          "需谨慎解读",
+          1
+        ],
+        [
+          "downgrade",
+          "或许只能被视为",
+          1
+        ],
+        [
+          "hedge",
+          "某种意义上",
+          1
+        ],
+        [
+          "hedge",
+          "可能",
+          1
+        ]
+      ],
+      "metrics": {
+        "avg_len": 30.8,
+        "chars": 127.0,
+        "hard_density": 2.5,
+        "hard_hits": 10.0,
+        "long_ratio": 0.25,
+        "sentences": 4.0
+      },
+      "ordering": {
+        "claim_first": true,
+        "claim_index": -1,
+        "limit_index": 1
+      },
+      "plainness": 0.0,
+      "qualifications": [
+        {
+          "referents": [],
+          "text": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景",
+          "verdict": "ungrounded"
+        },
+        {
+          "referents": [],
+          "text": "这或许只能被视为探索性证据，需谨慎解读",
+          "verdict": "ungrounded"
+        },
+        {
+          "referents": [
+            "3",
+            "2023",
+            "数据集"
+          ],
+          "text": "综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件",
+          "verdict": "unverified"
+        },
+        {
+          "referents": [],
+          "text": "如需更多论文信息请随时告诉我，希望对您有帮助",
+          "verdict": "ungrounded"
+        }
+      ],
+      "referents_per_sentence": [
+        [],
+        [],
+        [
+          "3",
+          "2023",
+          "数据集"
+        ],
+        []
+      ],
+      "sentences": [
+        "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景",
+        "这或许只能被视为探索性证据，需谨慎解读",
+        "综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件",
+        "如需更多论文信息请随时告诉我，希望对您有帮助"
+      ],
+      "source": null,
+      "text": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景。这或许只能被视为探索性证据，需谨慎解读。综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。如需更多论文信息请随时告诉我，希望对您有帮助！"
+    },
+    "prose_defense_sourced": {
+      "acronym_anchors": [],
+      "canonical_numbers": {
+        "2023": 1,
+        "3": 1
+      },
+      "concision": 0.815,
+      "confidence": 0.25,
+      "findings": [
+        [
+          "boilerplate",
+          "值得注意的是",
+          1
+        ],
+        [
+          "boilerplate",
+          "综上所述",
+          1
+        ],
+        [
+          "praise",
+          "充分表明",
+          1
+        ],
+        [
+          "praise",
+          "性能优势和广阔的应用前景",
+          1
+        ],
+        [
+          "disclaimer",
+          "如需更多",
+          1
+        ],
+        [
+          "disclaimer",
+          "请随时告诉我",
+          1
+        ],
+        [
+          "disclaimer",
+          "希望对您有帮助",
+          1
+        ],
+        [
+          "downgrade",
+          "探索性证据",
+          1
+        ],
+        [
+          "downgrade",
+          "需谨慎解读",
+          1
+        ],
+        [
+          "downgrade",
+          "或许只能被视为",
+          1
+        ],
+        [
+          "hedge",
+          "某种意义上",
+          1
+        ],
+        [
+          "hedge",
+          "可能",
+          1
+        ]
+      ],
+      "metrics": {
+        "avg_len": 30.8,
+        "chars": 127.0,
+        "hard_density": 2.5,
+        "hard_hits": 10.0,
+        "long_ratio": 0.25,
+        "sentences": 4.0
+      },
+      "ordering": {
+        "claim_first": true,
+        "claim_index": -1,
+        "limit_index": 1
+      },
+      "plainness": 0.0,
+      "qualifications": [
+        {
+          "referents": [],
+          "text": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景",
+          "verdict": "ungrounded"
+        },
+        {
+          "referents": [],
+          "text": "这或许只能被视为探索性证据，需谨慎解读",
+          "verdict": "ungrounded"
+        },
+        {
+          "referents": [
+            "3",
+            "2023",
+            "数据集"
+          ],
+          "text": "综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件",
+          "verdict": "boundary"
+        },
+        {
+          "referents": [],
+          "text": "如需更多论文信息请随时告诉我，希望对您有帮助",
+          "verdict": "ungrounded"
+        }
+      ],
+      "referents_per_sentence": [
+        [],
+        [],
+        [
+          "3",
+          "2023",
+          "数据集"
+        ],
+        []
+      ],
+      "sentences": [
+        "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景",
+        "这或许只能被视为探索性证据，需谨慎解读",
+        "综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件",
+        "如需更多论文信息请随时告诉我，希望对您有帮助"
+      ],
+      "source": "实验在 3 个数据集（A/B/C）上完成，2023 年算力受限，准确率 88.5%。",
+      "text": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景。这或许只能被视为探索性证据，需谨慎解读。综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。如需更多论文信息请随时告诉我，希望对您有帮助！"
+    },
+    "prose_percent": {
+      "acronym_anchors": [
+        "CVPR"
+      ],
+      "canonical_numbers": {
+        "12.5": 1,
+        "2019": 1,
+        "2023": 2,
+        "240": 1,
+        "76.5": 1
+      },
+      "concision": 0.44,
+      "confidence": 1.0,
+      "findings": [],
+      "metrics": {
+        "avg_len": 37.0,
+        "chars": 76.0,
+        "hard_density": 0.0,
+        "hard_hits": 0.0,
+        "long_ratio": 0.5,
+        "sentences": 2.0
+      },
+      "ordering": {
+        "claim_first": true,
+        "claim_index": 0,
+        "limit_index": -1
+      },
+      "plainness": 1.0,
+      "qualifications": [],
+      "referents_per_sentence": [
+        [
+          "12.50",
+          "240",
+          "样本",
+          "样本量",
+          "被试"
+        ],
+        [
+          "2019",
+          "2023",
+          "76.5",
+          "2019-2023",
+          "CVPR"
+        ]
+      ],
+      "sentences": [
+        "结果表明准确率提升 12.50%，样本量为 240 名被试",
+        "我们在 2019-2023 年间采集的数据上评测，CVPR 2023 的基线为 76.5%"
+      ],
+      "source": "准确率为 12.5 个百分点，样本量 240，时间范围 2019 至 2023，CVPR 2023 基线 88.5%。",
+      "text": "结果表明准确率提升 12.50%，样本量为 240 名被试。我们在 2019-2023 年间采集的数据上评测，CVPR 2023 的基线为 76.5%。"
+    },
+    "prose_thousands": {
+      "acronym_anchors": [],
+      "canonical_numbers": {
+        "-4.5": 1,
+        "12.5": 1,
+        "1200300": 1,
+        "2019": 1,
+        "2023": 1
+      },
+      "concision": 0.45,
+      "confidence": 0.5,
+      "findings": [
+        [
+          "boilerplate",
+          "值得注意的是",
+          1
+        ],
+        [
+          "praise",
+          "充分表明",
+          1
+        ]
+      ],
+      "metrics": {
+        "avg_len": 36.5,
+        "chars": 75.0,
+        "hard_density": 1.0,
+        "hard_hits": 2.0,
+        "long_ratio": 0.5,
+        "sentences": 2.0
+      },
+      "ordering": {
+        "claim_first": true,
+        "claim_index": 0,
+        "limit_index": -1
+      },
+      "plainness": 0.167,
+      "qualifications": [
+        {
+          "referents": [],
+          "text": "值得注意的是，该结果充分表明方法有效",
+          "verdict": "ungrounded"
+        }
+      ],
+      "referents_per_sentence": [
+        [
+          "1,200",
+          "300",
+          "2019",
+          "2023",
+          "4.5",
+          "12.50",
+          "1",
+          "200",
+          "2019-2023",
+          "样本",
+          "样本量"
+        ],
+        []
+      ],
+      "sentences": [
+        "总样本量为 1,200,300 条，区间 2019-2023，整体下降 −4.5 个百分点，占比 12.50%",
+        "值得注意的是，该结果充分表明方法有效"
+      ],
+      "source": "全样本科目均值 1,200,300 分，2019 至 2023 年区间 −4.5 个百分点，占比 12.5%。",
+      "text": "总样本量为 1,200,300 条，区间 2019-2023，整体下降 −4.5 个百分点，占比 12.50%。值得注意的是，该结果充分表明方法有效。"
+    }
+  },
+  "apa-volume-issue": {
+    "input": {
+      "name": "apa-volume-issue",
+      "raw_output": "{\"title\": \"Deep residual learning\", \"authors\": [\"He, K.\", \"Zhang, X.\"], \"year\": 2016, \"venue\": \"CVPR\", \"references\": [\"He K, Zhang X, Ren S, Sun J. Deep residual learning 2016: 770-778\"]}",
+      "reference_style": "apa",
+      "schema": "paper"
+    },
+    "result": {
+      "changes": [
+        "剔除空字段(keywords)",
+        "剔除空字段(abstract)",
+        "引用格式(references[0)->apa)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.8999999999999999,
+        "format": 0.8333333333333334,
+        "grounding": null,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "authors": [
+          "He, K",
+          "Zhang, X"
+        ],
+        "references": [
+          "He, K., Zhang, X., Ren, S., & Sun, J. (2016). Deep residual learning 2016: 770-778."
+        ],
+        "title": "Deep residual learning",
+        "venue": "CVPR",
+        "year": 2016
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.904,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 13 字、>40 字句占 0%；未提供原始材料，一致性维度不参与计分",
+          "score": 0.904
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(keywords)；剔除空字段(abstract)；引用格式(references[0)->apa)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "boundary-keep": {
+    "input": {
+      "input_text": "本研究覆盖 24 名被试，横截面数据，评测集为 A/B 两个公开基准。",
+      "name": "boundary-keep",
+      "raw_output": "或许只能被视为初步迹象。该结论仅在 24 名被试的横截面数据上得到验证，且尚未在公开评测集上复现。综上所述，方法在 A/B 两个基准上表现一致。",
+      "schema": null
+    },
+    "result": {
+      "changes": [
+        "采纳通俗化重写"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 1.0,
+        "confidence": 0.517,
+        "plainness": 0.444,
+        "preservation": 1.0
+      },
+      "errors": [],
+      "final_output": "或许只能被视为初步迹象。该结论仅在 24 名被试的横截面数据上得到验证，且尚未在公开评测集上复现。方法在 A/B 两个基准上表现一致。",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.66,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.56 低于阈值 0.80（plainness=0.17, confidence=0.52）｜防御措辞 3 处、句均 23 字、>40 字句占 0%",
+          "score": 0.564
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已通俗化｜防御措辞 3 → 2 处；句均 23 → 21 字；plainness 0.167 → 0.444；concision 1.0 → 1.0；confidence 0.517 → 0.517｜命中：综上所述、初步迹象、或许只能被视为｜删除无据：或许只能被视为初步迹象｜保留边界：该结论仅在 24 名被试的横截面数据、综上所述，方法在 A/B 两个基准上｜主张先行：否",
+          "score": 1.0,
+          "score_after": 0.66
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "doi-url": {
+    "input": {
+      "name": "doi-url",
+      "raw_output": "{\"title\": \"Attention is all you need\", \"year\": 2017, \"doi\": \"https://doi.org/10.18653/v1/N17-1\", \"references\": [\"Vaswani A. Attention is all you need. JMLR 2017;18(3):45-61. doi:10.18653/v1/N17-1\"]}",
+      "schema": "paper"
+    },
+    "result": {
+      "changes": [
+        "schema:drop_extra(doi)",
+        "剔除空字段(authors)",
+        "剔除空字段(venue)",
+        "剔除空字段(keywords)",
+        "剔除空字段(abstract)",
+        "引用格式(references[0)->gb-t-7714)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.7999999999999999,
+        "format": 0.75,
+        "grounding": null,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "references": [
+          "Vaswani A. Attention is all you need[J]. JMLR, 2017, 18(3): 45-61."
+        ],
+        "title": "Attention is all you need",
+        "year": 2017
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.837,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "reason": "剔除多余字段：doi",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 25 字、>40 字句占 0%；未提供原始材料，一致性维度不参与计分",
+          "score": 0.837
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(authors)；剔除空字段(venue)；剔除空字段(keywords)；剔除空字段(abstract)；引用格式(references[0)->gb-t-7714)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "en-prose": {
+    "input": {
+      "input_text": "",
+      "name": "en-prose",
+      "raw_output": "It is worth noting that the results may suggest an association, although this should be interpreted with caution. The method plays a crucial role in downstream tasks and offers significant advantages. This is for informational purposes only.",
+      "schema": null
+    },
+    "result": {
+      "changes": [],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.0,
+        "confidence": 0.333,
+        "plainness": 0.0,
+        "preservation": null
+      },
+      "errors": [],
+      "final_output": "It is worth noting that the results may suggest an association, although this should be interpreted with caution. The method plays a crucial role in downstream tasks and offers significant advantages. This is for informational purposes only.",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.118,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.12 低于阈值 0.80（plainness=0.00, confidence=0.33, concision=0.00）｜防御措辞 4 处、弱化 1 处、句均 79 字、>40 字句占 67%",
+          "score": 0.118
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已是通俗表述，无需改写（text）",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "experiment-percent-unit": {
+    "input": {
+      "input_text": "",
+      "name": "experiment-percent-unit",
+      "raw_output": "{\"model\": \"ResNet-50\", \"measure\": \"Top-1 accuracy\", \"result\": \"76.5 %\", \"data\": \"ImageNet\", \"base\": \"74.0\"}",
+      "schema": "experiment"
+    },
+    "result": {
+      "changes": [
+        "剔除空字段(unit)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.8999999999999999,
+        "format": 1.0,
+        "grounding": null,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "baseline": 74.0,
+        "dataset": "ImageNet",
+        "method": "ResNet-50",
+        "metric": "Top-1 accuracy",
+        "value": 76.5
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.96,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 10 字、>40 字句占 0%；未提供原始材料，一致性维度不参与计分",
+          "score": 0.96
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(unit)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "experiment-zero-value": {
+    "input": {
+      "name": "experiment-zero-value",
+      "raw_output": "{\"method\": \"Baseline\", \"metric\": \"F1\", \"value\": 0, \"unit\": \"百分比\"}",
+      "schema": "experiment"
+    },
+    "result": {
+      "changes": [
+        "剔除空字段(dataset)",
+        "剔除空字段(baseline)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.7999999999999999,
+        "format": 1.0,
+        "grounding": null,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "method": "Baseline",
+        "metric": "F1",
+        "unit": "%",
+        "value": 0.0
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.92,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 5 字、>40 字句占 0%；未提供原始材料，一致性维度不参与计分",
+          "score": 0.92
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(dataset)；剔除空字段(baseline)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "fenced-json": {
+    "input": {
+      "name": "fenced-json",
+      "raw_output": "```json\n{\"title\": \"基于深度学习的图像分类方法研究\", \"authors\": \"张三、李四\", \"year\": \"2023\", \"keywords\": \"深度学习;图像分类;卷积神经网络\", \"reference\": \"Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023.\", \"note\": \"如需更多论文信息请随时告诉我\"}\n```",
+      "schema": "paper"
+    },
+    "result": {
+      "changes": [
+        "schema:drop_extra(note)",
+        "剔除空字段(venue)",
+        "剔除空字段(abstract)",
+        "引用格式(references[0)->gb-t-7714)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.8999999999999999,
+        "format": 0.8888888888888888,
+        "grounding": null,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "authors": [
+          "张三",
+          "李四"
+        ],
+        "keywords": [
+          "深度学习",
+          "图像分类",
+          "卷积神经网络"
+        ],
+        "references": [
+          "Zhang S, Li S. Research on image classification based on deep learning[C]//CVPR. 2023."
+        ],
+        "title": "基于深度学习的图像分类方法研究",
+        "year": 2023
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.923,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "reason": "剔除多余字段：note",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 15 字、>40 字句占 0%；未提供原始材料，一致性维度不参与计分",
+          "score": 0.923
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(venue)；剔除空字段(abstract)；引用格式(references[0)->gb-t-7714)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "not-json-with-schema": {
+    "input": {
+      "input_text": "",
+      "name": "not-json-with-schema",
+      "raw_output": "抱歉，我无法完成该任务，建议进一步核实原始材料后再作判断。",
+      "schema": "paper"
+    },
+    "result": {
+      "changes": [],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.92,
+        "confidence": 0.0,
+        "plainness": 0.167,
+        "preservation": null
+      },
+      "errors": [
+        "output_not_json"
+      ],
+      "final_output": "抱歉，我无法完成该任务，建议进一步核实原始材料后再作判断。",
+      "markers": [
+        "repair_rejected"
+      ],
+      "repaired": true,
+      "request_id": "req_case",
+      "score": 0.285,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": false,
+          "reason": "输出不是可解析的 JSON 对象（剥离围栏后仍未取得对象结构）",
+          "score": 0.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "Schema 校验未通过",
+          "score": 0.285
+        },
+        {
+          "ms": 0,
+          "name": "repair",
+          "passed": false,
+          "reason": "修复结果未通过采纳闸门（valid=False，score=1.0，原得分 0.28），已丢弃"
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已是通俗表述，无需改写（text）",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": false
+    }
+  },
+  "off-options": {
+    "input": {
+      "name": "off-options",
+      "options": {
+        "score": false,
+        "simplify": false
+      },
+      "raw_output": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景。这或许只能被视为探索性证据，需谨慎解读。综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。如需更多论文信息请随时告诉我，希望对您有帮助！",
+      "schema": null
+    },
+    "result": {
+      "changes": [],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {},
+      "errors": [],
+      "final_output": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景。这或许只能被视为探索性证据，需谨慎解读。综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。如需更多论文信息请随时告诉我，希望对您有帮助！",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": null,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "paper-refs": {
+    "input": {
+      "input_text": "",
+      "name": "paper-refs",
+      "raw_output": "{\"title\": \"Attention is all you need\", \"authors\": [\"Vaswani, A.\", \"Shazeer, N.\", \"Parmar, N.\", \"Uszkoreit, J.\"], \"year\": 2017, \"venue\": \"NeurIPS\", \"abstract\": \"值得注意的是，本文充分表明自注意力机制足以替代循环结构。\", \"references\": [\"Vaswani A, Shazeer N, Parmar N, et al. Attention is all you need[C]. NeurIPS 2017: 5998-6008.\", \"Bahdanau D, Cho K, Bengio Y. Neural machine translation by jointly learning to align and translate\", \"Devlin J, Chang M W, Lee K, Toutanova K. BERT: Pre-training of deep bidirectional transformers. ACL 2019\"]}",
+      "schema": "paper"
+    },
+    "result": {
+      "changes": [
+        "采纳修复结果（第 1 次，得分 0.77 → 0.77）",
+        "剔除空字段(keywords)",
+        "引用格式(references[2)->gb-t-7714)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.95,
+        "format": 0.8181818181818182,
+        "grounding": null,
+        "plainness": 0.444
+      },
+      "errors": [],
+      "final_output": {
+        "abstract": "值得注意的是，本文充分表明自注意力机制足以替代循环结构。",
+        "authors": [
+          "Vaswani, A",
+          "Shazeer, N",
+          "Parmar, N",
+          "Uszkoreit, J"
+        ],
+        "references": [
+          "Vaswani A, Shazeer N, Parmar N, et al. Attention is all you need[C]. NeurIPS 2017: 5998-6008.",
+          "Bahdanau D, Cho K, Bengio Y. Neural machine translation by jointly learning to align and translate",
+          "Devlin J, Chang MW, Lee K, 等. BERT: Pre-training of deep bidirectional transformers[C]//ACL. 2019."
+        ],
+        "title": "Attention is all you need",
+        "venue": "NeurIPS",
+        "year": 2017
+      },
+      "markers": [],
+      "repaired": true,
+      "request_id": "req_case",
+      "score": 0.771,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.77 低于阈值 0.80（plainness=0.44）｜防御措辞 2 处、句均 20 字、>40 字句占 0%",
+          "score": 0.771
+        },
+        {
+          "ms": 1,
+          "name": "repair",
+          "passed": true,
+          "reason": "修复结果通过校验且得分不低于原输出，已采纳",
+          "score": 0.771
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(keywords)；引用格式(references[2)->gb-t-7714)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "paper-refs-apa": {
+    "input": {
+      "name": "paper-refs-apa",
+      "raw_output": "{\"title\": \"Attention is all you need\", \"authors\": [\"Vaswani, A.\", \"Shazeer, N.\", \"Parmar, N.\", \"Uszkoreit, J.\"], \"year\": 2017, \"venue\": \"NeurIPS\", \"abstract\": \"值得注意的是，本文充分表明自注意力机制足以替代循环结构。\", \"references\": [\"Vaswani A, Shazeer N, Parmar N, et al. Attention is all you need[C]. NeurIPS 2017: 5998-6008.\", \"Bahdanau D, Cho K, Bengio Y. Neural machine translation by jointly learning to align and translate\", \"Devlin J, Chang M W, Lee K, Toutanova K. BERT: Pre-training of deep bidirectional transformers. ACL 2019\"]}",
+      "reference_style": "apa",
+      "schema": "paper"
+    },
+    "result": {
+      "changes": [
+        "采纳修复结果（第 1 次，得分 0.77 → 0.77）",
+        "剔除空字段(keywords)",
+        "引用格式(references[0)->apa)",
+        "引用格式(references[2)->apa)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.95,
+        "format": 0.8181818181818182,
+        "grounding": null,
+        "plainness": 0.444
+      },
+      "errors": [],
+      "final_output": {
+        "abstract": "值得注意的是，本文充分表明自注意力机制足以替代循环结构。",
+        "authors": [
+          "Vaswani, A",
+          "Shazeer, N",
+          "Parmar, N",
+          "Uszkoreit, J"
+        ],
+        "references": [
+          "Vaswani, A., Shazeer, N., Parmar, N., & et, a. (2017). Attention is all you need. NeurIPS.",
+          "Bahdanau D, Cho K, Bengio Y. Neural machine translation by jointly learning to align and translate",
+          "Devlin, J., Chang, M. W., Lee, K., & Toutanova, K. (2019). BERT: Pre-training of deep bidirectional transformers. ACL."
+        ],
+        "title": "Attention is all you need",
+        "venue": "NeurIPS",
+        "year": 2017
+      },
+      "markers": [],
+      "repaired": true,
+      "request_id": "req_case",
+      "score": 0.771,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.77 低于阈值 0.80（plainness=0.44）｜防御措辞 2 处、句均 20 字、>40 字句占 0%",
+          "score": 0.771
+        },
+        {
+          "ms": 1,
+          "name": "repair",
+          "passed": true,
+          "reason": "修复结果通过校验且得分不低于原输出，已采纳",
+          "score": 0.771
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(keywords)；引用格式(references[0)->apa)；引用格式(references[2)->apa)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "paper-sample": {
+    "input": {
+      "input_text": "",
+      "name": "paper-sample",
+      "raw_output": "{\"title\": \"基于深度学习的图像分类方法研究\", \"authors\": \"张三、李四\", \"year\": \"2023\", \"keywords\": \"深度学习;图像分类;卷积神经网络\", \"reference\": \"Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023.\", \"note\": \"如需更多论文信息请随时告诉我\"}",
+      "schema": "paper"
+    },
+    "result": {
+      "changes": [
+        "schema:drop_extra(note)",
+        "剔除空字段(venue)",
+        "剔除空字段(abstract)",
+        "引用格式(references[0)->gb-t-7714)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.8999999999999999,
+        "format": 0.8888888888888888,
+        "grounding": null,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "authors": [
+          "张三",
+          "李四"
+        ],
+        "keywords": [
+          "深度学习",
+          "图像分类",
+          "卷积神经网络"
+        ],
+        "references": [
+          "Zhang S, Li S. Research on image classification based on deep learning[C]//CVPR. 2023."
+        ],
+        "title": "基于深度学习的图像分类方法研究",
+        "year": 2023
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.923,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "reason": "剔除多余字段：note",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 15 字、>40 字句占 0%；未提供原始材料，一致性维度不参与计分",
+          "score": 0.923
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(venue)；剔除空字段(abstract)；引用格式(references[0)->gb-t-7714)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "prose-clean": {
+    "input": {
+      "input_text": "",
+      "name": "prose-clean",
+      "raw_output": "方法在 3 个数据集上取得 88.5% 的准确率，比基线高 4.2 个百分点。该结论仅适用于横截面数据。",
+      "schema": null
+    },
+    "result": {
+      "changes": [],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.98,
+        "confidence": 1.0,
+        "plainness": 1.0,
+        "preservation": null
+      },
+      "errors": [],
+      "final_output": "方法在 3 个数据集上取得 88.5% 的准确率，比基线高 4.2 个百分点。该结论仅适用于横截面数据。",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.995,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 25 字、>40 字句占 0%；未提供原始材料，一致性维度不参与计分",
+          "score": 0.995
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已是通俗表述，无需改写（text）",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "prose-defense": {
+    "input": {
+      "input_text": "",
+      "name": "prose-defense",
+      "raw_output": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景。这或许只能被视为探索性证据，需谨慎解读。综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。如需更多论文信息请随时告诉我，希望对您有帮助！",
+      "schema": null
+    },
+    "result": {
+      "changes": [
+        "采纳通俗化重写"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.47,
+        "confidence": 1.0,
+        "plainness": 0.167,
+        "preservation": null
+      },
+      "errors": [],
+      "final_output": "实验表明该方法性能优于对比方法。这或许只能被视为探索性证据，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.532,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.28 低于阈值 0.80（plainness=0.00, confidence=0.25）｜防御措辞 10 处、弱化 2 处、句均 31 字、>40 字句占 25%",
+          "score": 0.28
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已通俗化｜防御措辞 10 → 2 处；句均 31 → 36 字；plainness 0.0 → 0.167；concision 0.815 → 0.47；confidence 0.25 → 1.0｜命中：值得注意的是、综上所述、充分表明、性能优势和广阔的应用前景、如需更多、请随时告诉我｜删除无据：值得注意的是，实验结果充分表明该方法、这或许只能被视为探索性证据，需谨慎解、如需更多论文信息请随时告诉我，希望对｜保留边界：综上所述，可能在某种意义上，该结论仅｜主张先行：是",
+          "score": 1.0,
+          "score_after": 0.532
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "prose-defense-with-source": {
+    "input": {
+      "input_text": "实验在 3 个数据集（A/B/C）上完成，2023 年算力受限，准确率 88.5%。",
+      "name": "prose-defense-with-source",
+      "raw_output": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景。这或许只能被视为探索性证据，需谨慎解读。综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。如需更多论文信息请随时告诉我，希望对您有帮助！",
+      "schema": null
+    },
+    "result": {
+      "changes": [
+        "采纳通俗化重写"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.47,
+        "confidence": 1.0,
+        "plainness": 0.167,
+        "preservation": 1.0
+      },
+      "errors": [],
+      "final_output": "实验表明该方法性能优于对比方法。这或许只能被视为探索性证据，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.602,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.39 低于阈值 0.80（plainness=0.00, confidence=0.25）｜防御措辞 10 处、弱化 2 处、句均 31 字、>40 字句占 25%",
+          "score": 0.388
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已通俗化｜防御措辞 10 → 2 处；句均 31 → 36 字；plainness 0.0 → 0.167；concision 0.815 → 0.47；confidence 0.25 → 1.0｜命中：值得注意的是、综上所述、充分表明、性能优势和广阔的应用前景、如需更多、请随时告诉我｜删除无据：值得注意的是，实验结果充分表明该方法、这或许只能被视为探索性证据，需谨慎解、如需更多论文信息请随时告诉我，希望对｜保留边界：综上所述，可能在某种意义上，该结论仅｜主张先行：是",
+          "score": 1.0,
+          "score_after": 0.602
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "prose-percent": {
+    "input": {
+      "input_text": "准确率为 12.5 个百分点，样本量 240，时间范围 2019 至 2023，CVPR 2023 基线 88.5%。",
+      "name": "prose-percent",
+      "raw_output": "结果表明准确率提升 12.50%，样本量为 240 名被试。我们在 2019-2023 年间采集的数据上评测，CVPR 2023 的基线为 76.5%。",
+      "schema": null
+    },
+    "result": {
+      "changes": [],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.44,
+        "confidence": 1.0,
+        "plainness": 1.0,
+        "preservation": 0.6666666666666666
+      },
+      "errors": [],
+      "final_output": "结果表明准确率提升 12.50%，样本量为 240 名被试。我们在 2019-2023 年间采集的数据上评测，CVPR 2023 的基线为 76.5%。",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.838,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 37 字、>40 字句占 50%；字段完整度对该 Schema 不可测，不参与计分",
+          "score": 0.838
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已是通俗表述，无需改写（text）",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "reference-missing-year": {
+    "input": {
+      "name": "reference-missing-year",
+      "raw_output": "{\"title\": \"无年份引用\", \"authors\": \"张三\", \"venue\": \"学报\"}",
+      "schema": "reference"
+    },
+    "result": {
+      "changes": [
+        "剔除空字段(year)",
+        "剔除空字段(doi)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.8799999999999999,
+        "format": 1.0,
+        "grounding": null,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "authors": [
+          "张三"
+        ],
+        "title": "无年份引用",
+        "type": "unknown",
+        "venue": "学报"
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.952,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 4 字、>40 字句占 0%；未提供原始材料，一致性维度不参与计分",
+          "score": 0.952
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(year)；剔除空字段(doi)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "reference-text": {
+    "input": {
+      "input_text": "",
+      "name": "reference-text",
+      "raw_output": "Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023, 1024-1031.",
+      "schema": "reference"
+    },
+    "result": {
+      "changes": [
+        "schema:drop_extra(issue、pages、volume)",
+        "剔除空字段(doi)"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "completeness": 0.94,
+        "format": 1.0,
+        "grounding": null,
+        "plainness": 1.0
+      },
+      "errors": [],
+      "final_output": {
+        "authors": [
+          "Zhang San",
+          "Li Si"
+        ],
+        "title": "Research on image classification based on deep learning",
+        "type": "conference",
+        "venue": "CVPR 1024-1031",
+        "year": 2023
+      },
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.976,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "reason": "剔除多余字段：issue、pages、volume",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": true,
+          "reason": "防御措辞 0 处、句均 34 字、>40 字句占 50%；未提供原始材料，一致性维度不参与计分",
+          "score": 0.976
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "剔除空字段(doi)",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "simplify-with-instruction": {
+    "input": {
+      "instruction": "保留研究边界，删除免责声明",
+      "name": "simplify-with-instruction",
+      "raw_output": "值得注意的是，实验结果充分表明该方法具有显著的性能优势和广阔的应用前景。这或许只能被视为探索性证据，需谨慎解读。综上所述，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。如需更多论文信息请随时告诉我，希望对您有帮助！",
+      "schema": null
+    },
+    "result": {
+      "changes": [
+        "采纳通俗化重写"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.47,
+        "confidence": 1.0,
+        "plainness": 0.167,
+        "preservation": null
+      },
+      "errors": [],
+      "final_output": "实验表明该方法性能优于对比方法。这或许只能被视为探索性证据，可能在某种意义上，该结论仅在 3 个数据集上得到验证，受限于 2023 年的算力条件。",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.532,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.28 低于阈值 0.80（plainness=0.00, confidence=0.25）｜防御措辞 10 处、弱化 2 处、句均 31 字、>40 字句占 25%",
+          "score": 0.28
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已通俗化｜防御措辞 10 → 2 处；句均 31 → 36 字；plainness 0.0 → 0.167；concision 0.815 → 0.47；confidence 0.25 → 1.0｜命中：值得注意的是、综上所述、充分表明、性能优势和广阔的应用前景、如需更多、请随时告诉我｜删除无据：值得注意的是，实验结果充分表明该方法、这或许只能被视为探索性证据，需谨慎解、如需更多论文信息请随时告诉我，希望对｜保留边界：综上所述，可能在某种意义上，该结论仅｜主张先行：是",
+          "score": 1.0,
+          "score_after": 0.532
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "strict-off-format": {
+    "input": {
+      "name": "strict-off-format",
+      "options": {
+        "strict": true
+      },
+      "raw_output": "{\"title\": \"基于深度学习的图像分类方法研究\", \"authors\": \"张三、李四\", \"year\": \"2023\", \"keywords\": \"深度学习;图像分类;卷积神经网络\", \"reference\": \"Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023.\", \"note\": \"如需更多论文信息请随时告诉我\"}",
+      "schema": "paper"
+    },
+    "result": {
+      "changes": [
+        "采纳通俗化重写"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.464,
+        "confidence": 1.0,
+        "plainness": 1.0,
+        "preservation": null
+      },
+      "errors": [
+        "extra_fields"
+      ],
+      "final_output": "{\"title\": \"基于深度学习的图像分类方法研究\", \"authors\": \"张三、李四\", \"year\": \"2023\", \"keywords\": \"深度学习;图像分类;卷积神经网络\", \"reference\": \"Zhang San, Li Si. Research on image classification based on deep learning. CVPR 2023.\", \"note\": \"\"}",
+      "markers": [
+        "repair_rejected"
+      ],
+      "repaired": true,
+      "request_id": "req_case",
+      "score": 0.874,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": false,
+          "reason": "strict 模式下存在 Schema 之外的字段：note",
+          "score": 0.0
+        },
+        {
+          "ms": 1,
+          "name": "rules",
+          "passed": false,
+          "reason": "Schema 校验未通过",
+          "score": 0.724
+        },
+        {
+          "ms": 1,
+          "name": "repair",
+          "passed": false,
+          "reason": "修复结果未通过采纳闸门（valid=False，score=0.724，原得分 0.72），已丢弃"
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 2,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已通俗化｜防御措辞 2 → 0 处；句均 44 → 41 字；plainness 0.667 → 1.0；concision 0.408 → 0.464；confidence 1.0 → 1.0｜命中：如需更多、请随时告诉我｜保留边界：CVPR 2023.\", \"note｜主张先行：是",
+          "score": 1.0,
+          "score_after": 0.874
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": false
+    }
+  },
+  "thousands-and-minus": {
+    "input": {
+      "input_text": "全样本科目均值 1,200,300 分，2019 至 2023 年区间 −4.5 个百分点，占比 12.5%。",
+      "name": "thousands-and-minus",
+      "raw_output": "总样本量为 1,200,300 条，区间 2019-2023，整体下降 −4.5 个百分点，占比 12.50%。值得注意的是，该结果充分表明方法有效。",
+      "schema": null
+    },
+    "result": {
+      "changes": [
+        "采纳通俗化重写"
+      ],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 0.54,
+        "confidence": 1.0,
+        "plainness": 1.0,
+        "preservation": 0.8333333333333334
+      },
+      "errors": [],
+      "final_output": "总样本量为 1,200,300 条，区间 2019-2023，整体下降 −4.5 个百分点，占比 12.50%。该结果表明方法有效。",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 0.883,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": true,
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "得分 0.42 低于阈值 0.80（plainness=0.17, confidence=0.50, concision=0.45）｜防御措辞 2 处、句均 36 字、>40 字句占 50%",
+          "score": 0.423
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 1,
+          "name": "simplify",
+          "passed": true,
+          "reason": "已通俗化｜防御措辞 2 → 0 处；句均 36 → 32 字；plainness 0.167 → 1.0；concision 0.45 → 0.54；confidence 0.5 → 1.0｜命中：值得注意的是、充分表明｜删除无据：值得注意的是，该结果充分表明方法有效｜主张先行：是",
+          "score": 1.0,
+          "score_after": 0.883
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": true
+    }
+  },
+  "whitespace-only": {
+    "input": {
+      "name": "whitespace-only",
+      "raw_output": "   \n  ",
+      "schema": null
+    },
+    "result": {
+      "changes": [],
+      "degraded": false,
+      "degraded_reason": "",
+      "dimensions": {
+        "concision": 1.0,
+        "confidence": 1.0,
+        "plainness": 1.0,
+        "preservation": null
+      },
+      "errors": [],
+      "final_output": "",
+      "markers": [],
+      "repaired": false,
+      "request_id": "req_case",
+      "score": 1.0,
+      "steps": [
+        {
+          "ms": 0,
+          "name": "schema",
+          "passed": false,
+          "reason": "输出为空文本",
+          "score": 0.0
+        },
+        {
+          "ms": 0,
+          "name": "rules",
+          "passed": false,
+          "reason": "Schema 校验未通过",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "format",
+          "passed": true,
+          "reason": "无需格式化",
+          "score": 1.0
+        },
+        {
+          "ms": 0,
+          "name": "simplify",
+          "passed": true,
+          "reason": "没有值得改写的叙述文本",
+          "score": 1.0
+        }
+      ],
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      },
+      "valid": false
+    }
+  }
+}
