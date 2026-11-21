@@ -9,7 +9,6 @@ if str(ROOT) not in sys.path:
 
 import pytest  # noqa: E402
 
-from app.audit import AuditLog  # noqa: E402
 from app.optimizer.context import StepContext  # noqa: E402
 from app.providers.mock import MockProvider  # noqa: E402
 from app.settings import PipelineConfig, Settings  # noqa: E402
@@ -48,11 +47,6 @@ def config() -> PipelineConfig:
 @pytest.fixture
 def provider() -> MockProvider:
     return MockProvider()
-
-
-@pytest.fixture
-def audit(tmp_path: Path) -> AuditLog:
-    return AuditLog(tmp_path / "audit.jsonl")
 
 
 @pytest.fixture

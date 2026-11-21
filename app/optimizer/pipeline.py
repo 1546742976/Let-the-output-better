@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import time
 import uuid
 from collections.abc import Callable
@@ -126,9 +125,6 @@ async def _run_steps(ctx: StepContext, on_step: Callable[[str, str], None] | Non
         if not step_config.enabled:
             continue
         step_class = REGISTRY.get(step_config.name)
-        if step_class is None and step_config.module:
-            importlib.import_module(step_config.module)
-            step_class = REGISTRY.get(step_config.name)
         if step_class is None:
             ctx.errors.append(f"unknown_step({step_config.name})")
             continue

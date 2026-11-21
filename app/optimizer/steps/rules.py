@@ -159,9 +159,9 @@ class RulesStep(BaseStep):
     def _completeness(self, ctx: StepContext) -> float | None:
         """字段完整度；`None` 表示这个维度**不可测**，而不是"测到了 0 分"。
 
-        自定义 Pydantic 模型走 `model_fields` 通用面即可参与评分；此前直接调
-        `required_fields()` 是内置模型才有的方法，任何自定义模型都会让本步骤抛错、
-        整次评分变成 `None`。不可测时权重由聚合处剔除，不会稀释总分。
+        自定义 Pydantic 模型走 `model_fields` 通用面即可参与评分；此前直接调内置模型
+        才有的方法，任何自定义模型都会让本步骤抛错、整次评分变成 `None`。不可测时
+        权重由聚合处剔除，不会稀释总分。
         """
         if ctx.schema is None:
             return 1.0 if (ctx.text or "").strip() else 0.0

@@ -317,7 +317,6 @@ async def probe(
     candidate: HarnessCandidate,
     *,
     timeout_s: float = PROBE_TIMEOUT_S,
-    ttl_s: float = PROBE_TTL_S,
     refresh: bool = False,
 ) -> HarnessCandidate:
     """带单飞锁与 TTL 的探测入口。
@@ -330,12 +329,12 @@ async def probe(
     now = time.monotonic()
     if not refresh:
         hit = _PROBE_CACHE.get(key)
-        if hit is not None and now - hit[0] < ttl_s:
+        if hit is not None and now - hit[0] < PROBE_TTL_S:
             return hit[1]
     async with _PROBE_LOCK:
         # 锁内复查：排队期间别人可能已经探完了同一候选
         hit = _PROBE_CACHE.get(key)
-        if hit is not None and not refresh and time.monotonic() - hit[0] < ttl_s:
+        if hit is not None and not refresh and time.monotonic() - hit[0] < PROBE_TTL_S:
             return hit[1]
         probed = await _probe_uncached(candidate, timeout_s)
         _PROBE_CACHE[key] = (time.monotonic(), probed)

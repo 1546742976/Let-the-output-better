@@ -4,6 +4,7 @@
  * 写入 DOM，不做任何 innerHTML 拼接。
  */
 
+const MAX_DIFF_LINES = 400;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DIAL_RADIUS = 52;
 const DIAL_CIRCUMFERENCE = 2 * Math.PI * DIAL_RADIUS;
@@ -76,7 +77,10 @@ const state = {
   query: "",
   sort: "new",
   currentRecord: null,
-  undoSnapshot: null,
+  diffRows: [],
+  diffDegraded: false,
+  diffNote: "",
+  diffView: "unified",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -88,9 +92,9 @@ function el(tag, className, text) {
   return node;
 }
 
-function icon(name, className) {
+function icon(name) {
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("class", className ? `icon ${className}` : "icon");
+  svg.setAttribute("class", "icon");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
   const use = document.createElementNS(SVG_NS, "use");
@@ -621,6 +625,7 @@ function selectRecord(lineNo) {
   const select = $("field-schema");
   select.value = Object.keys(state.config.schemas).includes(schemaName) ? schemaName : "";
   renderResult(record);
+  renderDiff(record);
   renderHistory();
   if (isNarrow()) setDrawer(false);
   $("result-panel").scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -829,6 +834,183 @@ function renderTags(record) {
   }
 }
 
+/* ---------- diff ---------- */
+
+function prettyText(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return JSON.stringify(JSON.parse(trimmed), null, 2);
+      } catch (error) {
+        return value;
+      }
+    }
+    return value;
+  }
+  return JSON.stringify(value, null, 2);
+}
+
+function diffLines(before, after) {
+  const n = before.length;
+  const m = after.length;
+  const table = [];
+  for (let index = 0; index <= n; index += 1) table.push(new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i -= 1) {
+    for (let j = m - 1; j >= 0; j -= 1) {
+      table[i][j] = before[i] === after[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
+    }
+  }
+  const rows = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (before[i] === after[j]) {
+      rows.push({ t: "eq", v: before[i], no: i + 1 });
+      i += 1;
+      j += 1;
+    } else if (table[i + 1][j] >= table[i][j + 1]) {
+      rows.push({ t: "del", v: before[i], no: i + 1 });
+      i += 1;
+    } else {
+      rows.push({ t: "add", v: after[j], no: j + 1 });
+      j += 1;
+    }
+  }
+  while (i < n) {
+    rows.push({ t: "del", v: before[i], no: i + 1 });
+    i += 1;
+  }
+  while (j < m) {
+    rows.push({ t: "add", v: after[j], no: j + 1 });
+    j += 1;
+  }
+  return rows;
+}
+
+function diffRow(row) {
+  const node = el("div", `dl ${row.t}`);
+  node.appendChild(el("span", "no", row.no));
+  node.appendChild(el("span", "sign", row.t === "add" ? "+" : row.t === "del" ? "-" : ""));
+  node.appendChild(el("span", null, row.v.length ? row.v : " "));
+  return node;
+}
+
+function splitPairs(rows) {
+  const pairs = [];
+  let index = 0;
+  while (index < rows.length) {
+    if (rows[index].t === "eq") {
+      pairs.push({ left: rows[index], right: rows[index] });
+      index += 1;
+      continue;
+    }
+    const dels = [];
+    const adds = [];
+    while (index < rows.length && rows[index].t === "del") dels.push(rows[index++]);
+    while (index < rows.length && rows[index].t === "add") adds.push(rows[index++]);
+    const count = Math.max(dels.length, adds.length);
+    for (let k = 0; k < count; k += 1) pairs.push({ left: dels[k] || null, right: adds[k] || null });
+  }
+  return pairs;
+}
+
+function splitCell(row, side) {
+  if (!row) {
+    const empty = el("span", "cell empty", " ");
+    empty.title = side === "left" ? "优化前无对应行" : "优化后无对应行";
+    return empty;
+  }
+  return el("span", `cell ${row.t}`, row.v.length ? row.v : " ");
+}
+
+function splitRow(pair) {
+  const node = el("div", "dl split");
+  node.appendChild(el("span", "no", pair.left ? pair.left.no : ""));
+  node.appendChild(splitCell(pair.left, "left"));
+  node.appendChild(el("span", "no", pair.right ? pair.right.no : ""));
+  node.appendChild(splitCell(pair.right, "right"));
+  return node;
+}
+
+function effectiveDiffView() {
+  return state.diffView === "split" && !state.diffDegraded && state.diffRows.length ? "split" : "unified";
+}
+
+/* 选项的高亮/禁用必须与真正渲染的视图同源：降级或空对照时并排不可用，
+   但保留用户偏好，回到正常记录时自动恢复并排。 */
+function syncDiffControls() {
+  const canSplit = Boolean(state.diffRows.length) && !state.diffDegraded;
+  const view = effectiveDiffView();
+  document.querySelectorAll("#diff-view .seg").forEach((button) => {
+    const isSplit = button.dataset.view === "split";
+    button.disabled = isSplit && !canSplit;
+    button.classList.toggle("is-on", button.dataset.view === view);
+    button.setAttribute("aria-pressed", String(button.dataset.view === view));
+    if (isSplit) {
+      button.title = canSplit
+        ? ""
+        : state.diffDegraded
+          ? `行数超过 ${MAX_DIFF_LINES}，已跳过逐行 diff`
+          : "运行优化后可切换并排";
+    }
+  });
+}
+
+function paintDiff() {
+  const box = $("diff");
+  clear(box);
+  const rows = state.diffRows;
+  const split = effectiveDiffView() === "split";
+  syncDiffControls();
+  box.classList.toggle("is-split", split);
+  if (state.diffNote) box.appendChild(el("div", "diff-note", state.diffNote));
+  if (!rows.length) {
+    if (!state.diffNote) box.appendChild(el("div", "diff-note", "运行优化后在此对照。"));
+    setText("diff-mode", "");
+    return;
+  }
+  if (split) {
+    const head = el("div", "dl split-head");
+    head.appendChild(el("span", null, "优化前"));
+    head.appendChild(el("span", null, "优化后"));
+    box.appendChild(head);
+    splitPairs(rows).forEach((pair) => box.appendChild(splitRow(pair)));
+  } else {
+    rows.forEach((row) => box.appendChild(diffRow(row)));
+  }
+  const changed = rows.filter((row) => row.t !== "eq").length;
+  setText("diff-mode", state.diffDegraded ? "已降级" : changed ? `${changed} 行变更` : "无变更");
+}
+
+function renderDiff(record) {
+  const before = prettyText(record.raw_output).split("\n");
+  const after = prettyText(record.final_output).split("\n");
+  state.diffNote = "";
+  if (before.length === 1 && !before[0] && after.length === 1 && !after[0]) {
+    state.diffRows = [];
+    state.diffDegraded = false;
+    paintDiff();
+    return;
+  }
+  if (before.length > MAX_DIFF_LINES || after.length > MAX_DIFF_LINES) {
+    state.diffRows = after.map((line, index) => ({ t: "eq", v: line, no: index + 1 }));
+    state.diffDegraded = true;
+    state.diffNote = `行数超过 ${MAX_DIFF_LINES}，跳过逐行 diff，仅展示优化后结果。`;
+    paintDiff();
+    return;
+  }
+  state.diffRows = diffLines(before, after);
+  state.diffDegraded = false;
+  paintDiff();
+}
+
+function setDiffView(view) {
+  state.diffView = view;
+  paintDiff();
+}
+
 /* ---------- 表单 ---------- */
 
 function setStatus(message, isError) {
@@ -905,6 +1087,7 @@ function applyOptimizeResponse(response, fallbackRawOutput) {
   const record = recordById(response.request_id) || synthesizeRecord(response, fallbackRawOutput);
   state.selectedLine = record.line_no ?? null;
   renderResult(record);
+  renderDiff(record);
   renderHistory();
   return record;
 }
@@ -1153,13 +1336,16 @@ function resetRun(announce = false) {
   const hadContent = Boolean(snapshot.raw || snapshot.instruction || snapshot.inputText);
   state.selectedLine = null;
   state.currentRecord = null;
-  state.undoSnapshot = snapshot;
   $("field-raw").value = "";
   $("field-instruction").value = "";
   $("field-input-text").value = "";
   $("field-schema").value = "";
   $("field-reference-style").value = "";
   $("result-panel").hidden = true;
+  state.diffRows = [];
+  state.diffDegraded = false;
+  state.diffNote = "";
+  paintDiff();
   setStatus("");
   renderHistory();
   $("field-raw").focus({ preventScroll: true });
@@ -1177,6 +1363,7 @@ function resetRun(announce = false) {
           const record = state.items.find((item) => item.line_no === snapshot.selectedLine);
           if (record) {
             renderResult(record);
+            renderDiff(record);
           }
           renderHistory();
           snack("已恢复上一份输入");
@@ -1276,7 +1463,17 @@ function initNavigation() {
       updateActiveNav();
     });
   };
+  let railQueued = false;
+  const onRailScroll = () => {
+    if (railQueued) return;
+    railQueued = true;
+    window.requestAnimationFrame(() => {
+      railQueued = false;
+      updateAppbarShadow();
+    });
+  };
   $("workspace").addEventListener("scroll", onScroll, { passive: true });
+  document.querySelector(".rail-right").addEventListener("scroll", onRailScroll, { passive: true });
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", () => {
     if (!isNarrow()) setDrawer(false);
@@ -1355,6 +1552,9 @@ async function init() {
     state.sort = next.key;
     setText("history-sort-label", next.label);
     renderHistory();
+  });
+  document.querySelectorAll("#diff-view .seg").forEach((button) => {
+    button.addEventListener("click", () => setDiffView(button.dataset.view));
   });
 
   document.addEventListener("keydown", (event) => {

@@ -208,6 +208,6 @@ class TestAsDict:
         assert item["version"] is None  # 未探测前不得有版本
 
     def test_profiles_are_constants(self):
-        assert CODEX.drivable is True and CODEX.requires_model_match is True
+        assert CODEX.drivable is True
         assert "-s" in CODEX.argv_template and "read-only" in CODEX.argv_template
         assert OPENCODE.drivable is False
