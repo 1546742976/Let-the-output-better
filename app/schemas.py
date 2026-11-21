@@ -32,7 +32,6 @@ REF_TYPE_BY_MARKER = {
     "[D]": "thesis",
     "[R]": "report",
 }
-REF_MARKER_BY_TYPE = {value: key for key, value in REF_TYPE_BY_MARKER.items()}
 
 
 def _clean(part: str) -> str:

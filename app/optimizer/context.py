@@ -53,13 +53,3 @@ class StepContext:
         if not self.deadline:
             return self.timeout_s
         return max(0.0, self.deadline - time.monotonic())
-
-    def snapshot(self) -> dict[str, Any]:
-        """供修复/重写前后比对的结果快照。"""
-        return {"parsed": self.parsed, "text": self.text, "valid": self.valid, "score": self.score}
-
-    def restore(self, snapshot: dict[str, Any]) -> None:
-        self.parsed = snapshot["parsed"]
-        self.text = snapshot["text"]
-        self.valid = snapshot["valid"]
-        self.score = snapshot["score"]

@@ -102,13 +102,5 @@ OPENAI_API = HarnessProfile(
 PROFILES: dict[str, HarnessProfile] = {p.name: p for p in (CODEX, OPENCODE, OPENAI_API)}
 
 
-def get_profile(name: str) -> HarnessProfile | None:
-    return PROFILES.get(name)
-
-
 def cli_profiles() -> list[HarnessProfile]:
     return [p for p in PROFILES.values() if p.kind == "command"]
-
-
-def drivable_profiles() -> list[HarnessProfile]:
-    return [p for p in PROFILES.values() if p.drivable]
