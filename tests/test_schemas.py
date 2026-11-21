@@ -8,6 +8,7 @@ from app.schemas import (
     Reference,
     coerce_number,
     coerce_year,
+    required_field_names,
     resolve_schema,
     split_multi,
     split_references,
@@ -131,7 +132,7 @@ class TestExperiment:
         assert (exp.value, exp.unit) == (12.0, "ms")
 
     def test_required_fields_drive_completeness(self):
-        assert set(Experiment.required_fields()) == {"method", "metric", "value"}
+        assert set(required_field_names(Experiment)) == {"method", "metric", "value"}
 
 
 class TestRegistry:

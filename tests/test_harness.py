@@ -17,7 +17,6 @@ FAIL = "import sys; sys.stderr.write('boom'); raise SystemExit(3)"
 SLEEP = "import sys, time; time.sleep(float(sys.argv[1] if len(sys.argv) > 1 else 5)); print('late')"
 BIG = "import sys; sys.stdout.write('x' * 200000)"
 ENV_DUMP = "import os,sys; sys.stdout.write(repr(sorted(os.environ)))"
-WRITE_OUT = "import sys,pathlib; pathlib.Path(sys.argv[1]).write_text('来自 output 文件', encoding='utf-8')"
 
 
 def harness(*, args: list[str], allowed: list[str] | None = None, **kwargs) -> CommandHarness:

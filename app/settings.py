@@ -174,7 +174,6 @@ class StepConfig(BaseModel):
     reference_style: Literal["gb-t-7714", "apa"] = "gb-t-7714"
     #: 通俗化只在散文场景生效；结构化字段要改写需在 pipeline.yaml 显式打开。
     prose_only: bool = True
-    module: str | None = None
 
     model_config = ConfigDict(extra="allow")
 

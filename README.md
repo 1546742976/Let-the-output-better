@@ -350,7 +350,7 @@ class CcfVenueStep(BaseStep):
         return StepResult(name=self.name, passed=True, score=1.0)
 ```
 
-在 `config/pipeline.yaml` 的 `steps` 列表中登记后立即生效；若校验不通过，将按配置触发修复或直接返回。
+扩展分两步：类上用 `@register_step` 完成注册，且**定义它的模块必须已被 import**（内置步骤由 `app/optimizer/steps/` 的包导入链带起，自定义步骤要么放进该包，要么在启动路径上显式导入）；之后在 `config/pipeline.yaml` 的 `steps` 列表中登记名字即生效。名字未注册时管线记一条 `unknown_step(<name>)` 并跳过该步骤，不中断整条管线。若校验不通过，将按配置触发修复或直接返回。
 
 ### 7.4 可视化页面
 

@@ -38,13 +38,11 @@ class HarnessProfile:
     host_names: tuple[str, ...] = ()
     #: 紧跟在入口之后的固定参数；``{output_file}`` 会被替换。
     argv_template: tuple[str, ...] = ()
-    answer_from: Literal["output_file", "stdout"] = "stdout"
     probe_version: tuple[str, ...] = ()
     #: (探测参数, 判定已登录的输出子串)
     probe_login: tuple[tuple[str, ...], str] | None = None
     #: api 形态使用的系统提示词，同样只能是常量。
     system_prompt: str = ""
-    requires_model_match: bool = False
     notes: tuple[str, ...] = ()
 
 
@@ -66,10 +64,8 @@ CODEX = HarnessProfile(
         OUTPUT_FILE_PLACEHOLDER,
         "-",
     ),
-    answer_from="output_file",
     probe_version=("--version",),
     probe_login=(("login", "status"), "Logged in"),
-    requires_model_match=True,
     notes=(
         "沙箱固定 read-only，且工作目录由 HARNESS_CWD 指定，禁止在本仓库内驱动",
         "账号默认模型须被已安装 CLI 版本支持，否则 harness 非零退出",

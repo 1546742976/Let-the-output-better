@@ -140,14 +140,6 @@ class AcademicModel(BaseModel):
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     @classmethod
-    def required_fields(cls) -> list[str]:
-        return required_field_names(cls) or []
-
-    @classmethod
-    def optional_fields(cls) -> list[str]:
-        return optional_field_names(cls) or []
-
-    @classmethod
     def schema_hint(cls) -> str:
         """渲染给修复提示词的字段说明（有意避开 ``BaseModel.schema_json`` 的签名）。"""
         return json.dumps(cls.model_json_schema(), ensure_ascii=False, indent=2)
