@@ -77,12 +77,10 @@ const state = {
   query: "",
   sort: "new",
   currentRecord: null,
-  diffRecord: null,
   diffRows: [],
   diffDegraded: false,
   diffNote: "",
   diffView: "unified",
-  undoSnapshot: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -94,9 +92,9 @@ function el(tag, className, text) {
   return node;
 }
 
-function icon(name, className) {
+function icon(name) {
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("class", className ? `icon ${className}` : "icon");
+  svg.setAttribute("class", "icon");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
   const use = document.createElementNS(SVG_NS, "use");
@@ -987,7 +985,6 @@ function paintDiff() {
 }
 
 function renderDiff(record) {
-  state.diffRecord = record;
   const before = prettyText(record.raw_output).split("\n");
   const after = prettyText(record.final_output).split("\n");
   state.diffNote = "";
@@ -1339,7 +1336,6 @@ function resetRun(announce = false) {
   const hadContent = Boolean(snapshot.raw || snapshot.instruction || snapshot.inputText);
   state.selectedLine = null;
   state.currentRecord = null;
-  state.undoSnapshot = snapshot;
   $("field-raw").value = "";
   $("field-instruction").value = "";
   $("field-input-text").value = "";
@@ -1349,7 +1345,6 @@ function resetRun(announce = false) {
   state.diffRows = [];
   state.diffDegraded = false;
   state.diffNote = "";
-  state.diffRecord = null;
   paintDiff();
   setStatus("");
   renderHistory();
@@ -1475,7 +1470,6 @@ function initNavigation() {
     window.requestAnimationFrame(() => {
       railQueued = false;
       updateAppbarShadow();
-      setActiveNav("section-diff");
     });
   };
   $("workspace").addEventListener("scroll", onScroll, { passive: true });

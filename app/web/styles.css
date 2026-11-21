@@ -74,11 +74,9 @@
   --purple-tonal: #f3e8fd;
   --orange: #e8710a;
 
-  --accent: var(--blue);
   --ok: var(--green);
   --bad: var(--red);
   --warn: var(--yellow-ink);
-  --info: var(--blue);
 
   --state-hover: rgba(60, 64, 67, 0.08);
   --state-press: rgba(60, 64, 67, 0.12);
@@ -1044,14 +1042,6 @@ body {
   background: var(--surface-2);
   border-color: var(--outline-soft);
   transform: translateY(-2px);
-}
-
-.pipe-node.is-static {
-  cursor: default;
-}
-
-.pipe-node.is-static:hover {
-  transform: none;
 }
 
 .pipe-dot {
@@ -2468,11 +2458,6 @@ kbd {
   #section-env {
     max-height: none;
     overflow: visible;
-  }
-
-  /* 给 sticky 卡片让出可视空间，避免它压住主列最后一块内容 */
-  .workspace {
-    padding-bottom: 40vh;
   }
 
   .workspace {
