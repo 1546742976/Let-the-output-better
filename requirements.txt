@@ -7,4 +7,4 @@ PyYAML>=6.0.3,<7.0
 pytest>=9.0.3,<10.0
 pytest-asyncio>=1.5,<2.0
 pytest-cov>=6.0,<7.0
-respx>=0.21,<1.0
+respx>=0.23.1,<1.0
